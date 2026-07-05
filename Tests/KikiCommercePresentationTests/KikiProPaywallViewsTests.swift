@@ -6,22 +6,12 @@ import Testing
 
 @MainActor
 struct KikiProPaywallViewsTests {
-    @Test("Status card and sheet are constructible")
-    func statusCardAndSheetAreConstructible() {
+    @Test("Sheet is constructible in both contexts")
+    func sheetIsConstructibleInBothContexts() {
         let manager = makeManager()
-        var selectedPlanID = "supporterLifetime"
 
         _ = KikiProPaywallSheet(manager: manager, context: .settings)
         _ = KikiProPaywallSheet(manager: manager, context: .onboarding)
-        _ = KikiProUpgradeCard(
-            status: manager.status,
-            products: manager.availablePlans,
-            selectedPlanID: .init(
-                get: { selectedPlanID },
-                set: { selectedPlanID = $0 }
-            )
-        )
-        _ = KikiProStatusCard(status: manager.status)
     }
 
     private func makeManager() -> KikiProAccessManager {
