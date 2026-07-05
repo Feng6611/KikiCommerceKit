@@ -128,6 +128,22 @@ public enum KikiProRenewalState: Equatable {
     case ends(on: Date, daysRemaining: Int, plan: KikiProPlan)
 }
 
+public enum KikiProAccessDebugMode: String, CaseIterable, Sendable {
+    case live
+    case notPro
+    case trial
+    case pro
+
+    public var displayName: String {
+        switch self {
+        case .live: return "Live"
+        case .notPro: return "Not Pro"
+        case .trial: return "Trial"
+        case .pro: return "Pro"
+        }
+    }
+}
+
 public enum KikiTrialStartTrigger: Equatable, Sendable {
     case explicit
     case automatic

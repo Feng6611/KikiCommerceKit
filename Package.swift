@@ -19,7 +19,7 @@ let package = Package(
         ),
         .package(
             url: "https://github.com/Feng6611/Kiki_mackit.git",
-            exact: "0.7.2"
+            exact: "0.7.3"
         )
     ],
     targets: [

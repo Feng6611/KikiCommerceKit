@@ -141,13 +141,13 @@ struct KikiProAccessManagerTests {
         let fixture = Fixture()
         let manager = fixture.makeManager()
 
-        manager.setDebugProAccessOverride(true)
-        #expect(manager.debugProAccessOverride == true)
+        manager.setDebugProAccessOverride(.pro)
+        #expect(manager.debugProAccessOverride == .pro)
         #expect(manager.status.isPro)
 
-        manager.setDebugProAccessOverride(false)
-        #expect(manager.debugProAccessOverride == false)
-        #expect(manager.status == .expired)
+        manager.setDebugProAccessOverride(.notPro)
+        #expect(manager.debugProAccessOverride == .notPro)
+        #expect(manager.status == .notStarted)
 
         manager.clearDebugProAccessOverride()
         #expect(manager.debugProAccessOverride == nil)

@@ -15,7 +15,7 @@ public final class KikiProAccessManager: ObservableObject {
     @Published public private(set) var isRestoringPurchases = false
     @Published public private(set) var commerceFeedback: KikiCommerceFeedback?
 #if DEBUG
-    @Published public private(set) var debugProAccessOverride: Bool?
+    @Published public private(set) var debugProAccessOverride: KikiProAccessDebugMode?
 #endif
 
     public var currentEntitlementSnapshot: CommerceEntitlement? {
@@ -240,21 +240,9 @@ public final class KikiProAccessManager: ObservableObject {
     }
 
 #if DEBUG
-    public var debugProAccessToggleIsOn: Bool {
-        debugProAccessOverride ?? status.isPro
-    }
-
-    public var debugProAccessOverrideDisplayName: String {
-        guard let debugProAccessOverride else {
-            return "Off"
-        }
-
-        return debugProAccessOverride ? "Paid" : "Unpaid"
-    }
-
-    public func setDebugProAccessOverride(_ isPro: Bool) {
-        defaults.set(isPro, forKey: configuration.storageKeys.debugProAccessOverride)
-        debugProAccessOverride = isPro
+    public func setDebugProAccessOverride(_ mode: KikiProAccessDebugMode) {
+        defaults.set(mode.rawValue, forKey: configuration.storageKeys.debugProAccessOverride)
+        debugProAccessOverride = mode
         clearCommerceFeedback()
         applyStatus(computeStatus())
     }
@@ -366,10 +354,20 @@ public final class KikiProAccessManager: ObservableObject {
     ) -> KikiProAccessStatus {
 #if DEBUG
         if let debugProAccessOverride = readDebugProAccessOverride(defaults: defaults, keys: configuration.storageKeys) {
-            return debugProAccessOverride ? .pro(
-                plan: defaultPlan(in: configuration),
-                entitlement: debugEntitlement(configuration: configuration)
-            ) : .expired
+            switch debugProAccessOverride {
+            case .live:
+                break
+            case .notPro:
+                return .notStarted
+            case .trial:
+                let expiresAt = now().addingTimeInterval(2 * 86_400)
+                return .trial(.time(daysRemaining: 2, expiresAt: expiresAt))
+            case .pro:
+                return .pro(
+                    plan: defaultPlan(in: configuration),
+                    entitlement: debugEntitlement(configuration: configuration)
+                )
+            }
         }
 #endif
 
@@ -492,12 +490,11 @@ public final class KikiProAccessManager: ObservableObject {
     private static func readDebugProAccessOverride(
         defaults: UserDefaults,
         keys: KikiProAccessStorageKeys
-    ) -> Bool? {
-        guard defaults.object(forKey: keys.debugProAccessOverride) != nil else {
+    ) -> KikiProAccessDebugMode? {
+        guard let rawValue = defaults.string(forKey: keys.debugProAccessOverride) else {
             return nil
         }
-
-        return defaults.bool(forKey: keys.debugProAccessOverride)
+        return KikiProAccessDebugMode(rawValue: rawValue)
     }
 
     private static func debugEntitlement(configuration: KikiProAccessConfiguration) -> CommerceEntitlement {
