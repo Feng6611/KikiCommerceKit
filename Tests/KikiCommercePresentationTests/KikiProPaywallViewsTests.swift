@@ -51,7 +51,6 @@ struct KikiProPaywallViewsTests {
             ],
             defaultPlanID: "supporterLifetime",
             commerceConfiguration: CommerceConfiguration(
-                apiKey: "test",
                 entitlementIdentifier: "pro",
                 productIdentifiers: [
                     .yearly: "dev.kkuk.test.pro.yearly",

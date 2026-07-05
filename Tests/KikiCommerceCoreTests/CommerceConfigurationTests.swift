@@ -4,12 +4,10 @@ import XCTest
 final class CommerceConfigurationTests: XCTestCase {
     func testStandardProBuildsProductIdentifiersFromBundleIdentifier() throws {
         let configuration = CommerceConfiguration.standardPro(
-            apiKey: "test_key",
             bundleIdentifier: "com.example.MyApp"
         )
 
         XCTAssertEqual(configuration.entitlementIdentifier, "pro")
-        XCTAssertEqual(configuration.offeringIdentifier, "default")
         XCTAssertEqual(configuration.entitlementMatchingPolicy, .configuredEntitlementOrProductOnly)
         XCTAssertEqual(try configuration.productIdentifier(for: .yearly), "com.example.MyApp.pro.yearly")
         XCTAssertEqual(try configuration.productIdentifier(for: .lifetime), "com.example.MyApp.pro.lifetime")
@@ -17,7 +15,6 @@ final class CommerceConfigurationTests: XCTestCase {
 
     func testExplicitConfigurationKeepsSkuValues() throws {
         let configuration = CommerceConfiguration(
-            apiKey: "test_key",
             entitlementIdentifier: "pro",
             productIdentifiers: [
                 .yearly: "yearly.sku",
@@ -31,7 +28,6 @@ final class CommerceConfigurationTests: XCTestCase {
 
     func testMissingProductIdentifierThrows() {
         let configuration = CommerceConfiguration(
-            apiKey: "test_key",
             entitlementIdentifier: "pro",
             productIdentifiers: [.yearly: "yearly.sku"]
         )

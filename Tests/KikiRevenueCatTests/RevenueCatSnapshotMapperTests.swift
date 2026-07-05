@@ -7,7 +7,6 @@ import XCTest
 final class RevenueCatSnapshotMapperTests: XCTestCase {
     private let originalPurchaseDate = Date(timeIntervalSince1970: 1_700_000_000)
     private let configuration = CommerceConfiguration(
-        apiKey: "test_key",
         entitlementIdentifier: "pro",
         productIdentifiers: [
             .yearly: "com.example.app.pro.yearly",
@@ -98,7 +97,6 @@ final class RevenueCatSnapshotMapperTests: XCTestCase {
 
     func testParserCanOptInToAnyActiveEntitlementWhenIdentifiersDrift() {
         let permissiveConfiguration = CommerceConfiguration(
-            apiKey: "test_key",
             entitlementIdentifier: "pro",
             productIdentifiers: [
                 .yearly: "com.example.app.pro.yearly",
@@ -135,7 +133,6 @@ final class RevenueCatSnapshotMapperTests: XCTestCase {
 
     func testParserCanRequireConfiguredEntitlementOrProductIdentifiers() {
         let strictConfiguration = CommerceConfiguration(
-            apiKey: "test_key",
             entitlementIdentifier: "pro",
             productIdentifiers: [
                 .yearly: "com.example.app.pro.yearly",

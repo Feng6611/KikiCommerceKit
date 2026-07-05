@@ -4,8 +4,8 @@
 
 ### Added
 - Initial release. Merges the former `RevenueCatCommerceKit` package and the `KikiCommerce` target from `Kiki_mackit` into a single layered package with three libraries:
-  - `KikiCommerceCore` — abstractions: `CommerceClient`, `CommerceConfiguration`, `CommerceEntitlement`, `CommercePlan`, `CommercePurchaseError`, `LegacyPaidAppConfiguration`, `KikiProAccessManager`, `KikiProAccessConfiguration`, `KikiProPaywallCopy/Layout`. No RevenueCat dependency.
-  - `KikiRevenueCat` — `RevenueCatCommerceClient`, `RevenueCatSnapshotMapper`, `LegacyPaidAppEntitlementSource` (`AppTransaction` grandfathering only), `CommercePurchaseError.from(revenueCatError:)`, and a convenience `KikiProAccessManager.init(configuration:defaults:now:)` that wires up `RevenueCatCommerceClient`.
+  - `KikiCommerceCore` — abstractions: `CommerceClient`, `CommerceConfiguration`, `CommerceEntitlement`, `CommercePlan`, `CommercePurchaseError`, `LegacyPaidAppConfiguration`, `KikiProAccessManager`, `KikiProAccessConfiguration`, `KikiProPaywallCopy/Layout`. No RevenueCat dependency. `CommerceConfiguration` carries only generic StoreKit-level config (entitlement identifier, product identifiers, matching policy, legacy paid app, log); RevenueCat-specific config lives in `KikiRevenueCat.RevenueCatConfiguration`.
+  - `KikiRevenueCat` — `RevenueCatConfiguration`, `RevenueCatCommerceClient`, `RevenueCatSnapshotMapper`, `LegacyPaidAppEntitlementSource` (`AppTransaction` grandfathering only), `CommercePurchaseError.from(revenueCatError:)`, and a convenience `KikiProAccessManager.init(configuration:revenueCatConfiguration:defaults:now:)` that wires up `RevenueCatCommerceClient`.
   - `KikiCommercePresentation` — `KikiProPaywallSheet`, `KikiProUpgradeCard`, `KikiProStatusCard` built on `KikiPaywall`.
 
 ### Security
@@ -16,3 +16,8 @@
   - `import RevenueCatCommerceKit` → split into `import KikiCommerceCore` (most types) plus `import KikiRevenueCat` (RevenueCat adapter types).
   - `CommercePurchaseError(error:)` for RevenueCat NSError mapping → `CommercePurchaseError.from(revenueCatError:)` from `KikiRevenueCat`. The Core `CommercePurchaseError(error:)` initializer only pass-through `CommercePurchaseError` and falls back to `.unknown(localizedDescription)`.
 - The `KikiCommerce` target inside `Kiki_mackit` is removed. Replace `import KikiCommerce` with `import KikiCommerceCore` (manager + models) and `import KikiCommercePresentation` (paywall views).
+
+### Changed (vs. initial 0.1.0 commit)
+- `CommerceConfiguration` no longer carries RevenueCat-specific fields (`apiKey`, `offeringIdentifier`, `allowsTestAPIKeyInRelease`, `showStoreMessagesAutomatically`, `requestTimeoutNanoseconds`, `invalidReceiptRecoveryDelayNanoseconds`). These moved to `KikiRevenueCat.RevenueCatConfiguration`. `CommerceConfiguration.standardPro(apiKey:bundleIdentifier:...)` is now `RevenueCatConfiguration.standardPro(apiKey:bundleIdentifier:)` plus `CommerceConfiguration.standardPro(bundleIdentifier:)`.
+- `RevenueCatCommerceClient.init` now takes both `configuration: CommerceConfiguration` and `revenueCatConfiguration: RevenueCatConfiguration`.
+- `KikiProAccessManager` convenience init in `KikiRevenueCat` now takes `revenueCatConfiguration:` explicitly: `KikiProAccessManager(configuration:revenueCatConfiguration:defaults:now:)`.

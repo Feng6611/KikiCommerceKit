@@ -9,14 +9,16 @@ import os
 @MainActor
 final class RevenueCatCommerceClientTests: XCTestCase {
     private let configuration = CommerceConfiguration(
-        apiKey: "test_key",
         entitlementIdentifier: "pro",
         productIdentifiers: [
             .yearly: "com.example.app.pro.yearly",
             .lifetime: "com.example.app.pro.lifetime"
         ],
-        requestTimeoutNanoseconds: 1_000_000_000,
         logSubsystem: "RevenueCatCommerceKitTests"
+    )
+    private let revenueCatConfiguration = RevenueCatConfiguration(
+        apiKey: "test_key",
+        requestTimeoutNanoseconds: 1_000_000_000
     )
 
     func testLoadOfferingFallsBackToConfiguredOfferingWhenCurrentHasNoConfiguredProducts() async throws {
@@ -30,7 +32,11 @@ final class RevenueCatCommerceClientTests: XCTestCase {
                 )
             ]
         )
-        let client = RevenueCatCommerceClient(configuration: configuration, sdkClient: sdkClient)
+        let client = RevenueCatCommerceClient(
+            configuration: configuration,
+            revenueCatConfiguration: revenueCatConfiguration,
+            sdkClient: sdkClient
+        )
         client.configureIfNeeded()
 
         let offering = try await client.loadOffering()
@@ -53,7 +59,11 @@ final class RevenueCatCommerceClientTests: XCTestCase {
                 )
             ]
         )
-        let client = RevenueCatCommerceClient(configuration: configuration, sdkClient: sdkClient)
+        let client = RevenueCatCommerceClient(
+            configuration: configuration,
+            revenueCatConfiguration: revenueCatConfiguration,
+            sdkClient: sdkClient
+        )
         client.configureIfNeeded()
 
         let offering = try await client.loadOffering()
@@ -73,6 +83,7 @@ final class RevenueCatCommerceClientTests: XCTestCase {
         )
         let client = RevenueCatCommerceClient(
             configuration: configuration,
+            revenueCatConfiguration: revenueCatConfiguration,
             sdkClient: sdkClient,
             legacyEntitlementSource: legacySource
         )
@@ -85,7 +96,6 @@ final class RevenueCatCommerceClientTests: XCTestCase {
 
     func testRefreshUsesLegacyEntitlementWhenEnabledAndRevenueCatIsUnavailable() async throws {
         let configuration = CommerceConfiguration(
-            apiKey: "",
             entitlementIdentifier: "pro",
             productIdentifiers: [
                 .yearly: "com.example.app.pro.yearly",
@@ -109,6 +119,7 @@ final class RevenueCatCommerceClientTests: XCTestCase {
         legacySource.refreshedLegacyEntitlement = legacyEntitlement
         let client = RevenueCatCommerceClient(
             configuration: configuration,
+            revenueCatConfiguration: revenueCatConfiguration,
             sdkClient: MockRevenueCatSDKClient(),
             legacyEntitlementSource: legacySource
         )
@@ -168,6 +179,7 @@ final class RevenueCatCommerceClientTests: XCTestCase {
         )
         let client = RevenueCatCommerceClient(
             configuration: configuration,
+            revenueCatConfiguration: revenueCatConfiguration,
             sdkClient: sdkClient,
             legacyEntitlementSource: legacySource
         )
@@ -200,7 +212,6 @@ final class RevenueCatCommerceClientTests: XCTestCase {
 
     private func legacyConfiguration() -> CommerceConfiguration {
         CommerceConfiguration(
-            apiKey: "",
             entitlementIdentifier: "pro",
             productIdentifiers: [
                 .yearly: "com.example.app.pro.yearly",
@@ -223,7 +234,7 @@ private final class MockRevenueCatSDKClient: RevenueCatSDKClient {
     var loadedCustomerInfo: CustomerInfo?
     var didConfigure = false
 
-    func configure(with configuration: CommerceConfiguration) {
+    func configure(with configuration: RevenueCatConfiguration) {
         didConfigure = true
     }
 

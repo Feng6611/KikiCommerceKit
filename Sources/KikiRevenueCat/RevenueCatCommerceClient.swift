@@ -10,13 +10,18 @@ public final class RevenueCatCommerceClient: NSObject, CommerceClient {
     public private(set) var isConfigured = false
 
     private let configuration: CommerceConfiguration
+    private let revenueCatConfiguration: RevenueCatConfiguration
     private let logger: Logger
     private let sdkClient: any RevenueCatSDKClient
     private let legacyEntitlementSource: any LegacyPaidAppEntitlementProviding
     private var currentOffering: Offering?
 
-    public init(configuration: CommerceConfiguration) {
+    public init(
+        configuration: CommerceConfiguration,
+        revenueCatConfiguration: RevenueCatConfiguration
+    ) {
         self.configuration = configuration
+        self.revenueCatConfiguration = revenueCatConfiguration
         self.sdkClient = RevenueCatPurchasesSDKClient()
         self.legacyEntitlementSource = LegacyPaidAppEntitlementSource()
         self.logger = Logger(
@@ -29,10 +34,12 @@ public final class RevenueCatCommerceClient: NSObject, CommerceClient {
 
     init(
         configuration: CommerceConfiguration,
+        revenueCatConfiguration: RevenueCatConfiguration,
         sdkClient: any RevenueCatSDKClient,
         legacyEntitlementSource: (any LegacyPaidAppEntitlementProviding)? = nil
     ) {
         self.configuration = configuration
+        self.revenueCatConfiguration = revenueCatConfiguration
         self.sdkClient = sdkClient
         self.legacyEntitlementSource = legacyEntitlementSource ?? LegacyPaidAppEntitlementSource()
         self.logger = Logger(
@@ -58,19 +65,19 @@ public final class RevenueCatCommerceClient: NSObject, CommerceClient {
             return
         }
 
-        guard !configuration.apiKey.isEmpty else {
+        guard !revenueCatConfiguration.apiKey.isEmpty else {
             logger.error("RevenueCat configuration skipped because the API key is missing.")
             return
         }
 
 #if !DEBUG
-        guard configuration.allowsTestAPIKeyInRelease || !configuration.apiKey.hasPrefix("test_") else {
+        guard revenueCatConfiguration.allowsTestAPIKeyInRelease || !revenueCatConfiguration.apiKey.hasPrefix("test_") else {
             logger.error("Skipping RevenueCat configuration in non-debug build because the API key is a test key.")
             return
         }
 #endif
 
-        sdkClient.configure(with: configuration)
+        sdkClient.configure(with: revenueCatConfiguration)
         isConfigured = true
 
         logger.notice("RevenueCat configured.")
@@ -224,7 +231,7 @@ public final class RevenueCatCommerceClient: NSObject, CommerceClient {
             return current
         }
 
-        let configured = offerings.all[configuration.offeringIdentifier]
+        let configured = offerings.all[revenueCatConfiguration.offeringIdentifier]
         if let configured, configured.hasConfiguredProducts(configuration: configuration) {
             if let current {
                 logger.notice(
@@ -238,7 +245,7 @@ public final class RevenueCatCommerceClient: NSObject, CommerceClient {
     }
 
     private func recoverEntitlementAfterInvalidReceipt() async throws -> CommerceEntitlement? {
-        try? await Task.sleep(nanoseconds: configuration.invalidReceiptRecoveryDelayNanoseconds)
+        try? await Task.sleep(nanoseconds: revenueCatConfiguration.invalidReceiptRecoveryDelayNanoseconds)
 
         if let refreshedEntitlement = try await refreshEntitlement() {
             return refreshedEntitlement
@@ -262,8 +269,8 @@ public final class RevenueCatCommerceClient: NSObject, CommerceClient {
                 try await operation()
             }
 
-            group.addTask { [configuration] in
-                try await Task.sleep(nanoseconds: configuration.requestTimeoutNanoseconds)
+            group.addTask { [revenueCatConfiguration] in
+                try await Task.sleep(nanoseconds: revenueCatConfiguration.requestTimeoutNanoseconds)
                 throw CommercePurchaseError.network
             }
 
@@ -283,7 +290,7 @@ protocol RevenueCatSDKClient: AnyObject {
     var cachedCustomerInfo: CustomerInfo? { get }
     var customerInfoDidChange: ((CustomerInfo) -> Void)? { get set }
 
-    func configure(with configuration: CommerceConfiguration)
+    func configure(with configuration: RevenueCatConfiguration)
     func offerings() async throws -> RevenueCatSDKOfferings
     func customerInfo(fetchPolicy: CacheFetchPolicy) async throws -> CustomerInfo
     func purchase(package: Package) async throws -> PurchaseResultData
@@ -302,7 +309,7 @@ final class RevenueCatPurchasesSDKClient: NSObject, RevenueCatSDKClient {
         Purchases.shared.cachedCustomerInfo
     }
 
-    func configure(with configuration: CommerceConfiguration) {
+    func configure(with configuration: RevenueCatConfiguration) {
 #if DEBUG
         Purchases.logLevel = .debug
 #else
