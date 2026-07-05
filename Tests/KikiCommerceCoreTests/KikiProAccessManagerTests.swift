@@ -10,11 +10,10 @@ struct KikiProAccessManagerTests {
         let manager = fixture.makeManager()
 
         #expect(manager.status == .notStarted)
-        #expect(!manager.hasCompletedOnboarding)
     }
 
-    @Test("Starting trial stores start date and completes onboarding")
-    func startTrialStoresStartDateAndCompletesOnboarding() async {
+    @Test("Starting trial stores start date")
+    func startTrialStoresStartDate() async {
         let start = Date(timeIntervalSince1970: 1_000)
         let fixture = Fixture(now: { start })
         let manager = fixture.makeManager()
@@ -22,7 +21,6 @@ struct KikiProAccessManagerTests {
         await manager.startTrial()
 
         #expect(fixture.defaults.object(forKey: fixture.storageKeys.trialStartedAt) as? Date == start)
-        #expect(manager.hasCompletedOnboarding)
         #expect(manager.status == .trial(daysRemaining: 2, expiresAt: start.addingTimeInterval(Fixture.trialDuration)))
     }
 
@@ -55,7 +53,6 @@ struct KikiProAccessManagerTests {
         }
         #expect(plan.id == "supporterLifetime")
         #expect(snapshot.originalPurchaseDate == purchaseDate)
-        #expect(manager.hasCompletedOnboarding)
     }
 
     @Test("Purchase without entitlement retries refresh and reports activation pending")
@@ -120,7 +117,6 @@ struct KikiProAccessManagerTests {
         manager.setDebugProAccessOverride(true)
         #expect(manager.debugProAccessOverride == true)
         #expect(manager.status.isPro)
-        #expect(manager.hasCompletedOnboarding)
 
         manager.setDebugProAccessOverride(false)
         #expect(manager.debugProAccessOverride == false)

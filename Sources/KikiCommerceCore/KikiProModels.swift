@@ -150,23 +150,19 @@ public enum KikiTrialPolicy: Equatable, Sendable {
 
 public struct KikiProAccessStorageKeys: Equatable, Sendable {
     public let trialStartedAt: String
-    public let hasCompletedOnboarding: String
     public let debugProAccessOverride: String
 
     public init(
         trialStartedAt: String,
-        hasCompletedOnboarding: String,
         debugProAccessOverride: String
     ) {
         self.trialStartedAt = trialStartedAt
-        self.hasCompletedOnboarding = hasCompletedOnboarding
         self.debugProAccessOverride = debugProAccessOverride
     }
 
     public static func prefixed(_ prefix: String) -> Self {
         Self(
             trialStartedAt: "\(prefix).trialStartedAt",
-            hasCompletedOnboarding: "\(prefix).hasCompletedOnboarding",
             debugProAccessOverride: "\(prefix).debugProAccessOverride"
         )
     }

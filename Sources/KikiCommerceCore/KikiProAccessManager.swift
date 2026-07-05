@@ -23,19 +23,6 @@ public final class KikiProAccessManager: ObservableObject {
         entitlementSnapshot
     }
 
-    public var hasCompletedOnboarding: Bool {
-        defaults.bool(forKey: configuration.storageKeys.hasCompletedOnboarding)
-    }
-
-    public var shouldShowOnboarding: Bool {
-#if DEBUG
-        if debugProAccessOverride != nil {
-            return false
-        }
-#endif
-        return !hasCompletedOnboarding && !status.isPro
-    }
-
     public let configuration: KikiProAccessConfiguration
 
     private let defaults: UserDefaults
@@ -154,12 +141,7 @@ public final class KikiProAccessManager: ObservableObject {
         }
 
         defaults.set(now(), forKey: configuration.storageKeys.trialStartedAt)
-        defaults.set(true, forKey: configuration.storageKeys.hasCompletedOnboarding)
         applyStatus(computeStatus())
-    }
-
-    public func completeOnboardingWithoutTrial() {
-        defaults.set(true, forKey: configuration.storageKeys.hasCompletedOnboarding)
     }
 
     public func purchase(planID: String) async throws {
@@ -186,7 +168,6 @@ public final class KikiProAccessManager: ObservableObject {
             }
 
             if status.isPro {
-                defaults.set(true, forKey: configuration.storageKeys.hasCompletedOnboarding)
                 paywallSuccessMessage = configuration.messages.purchaseSuccess
             }
         } catch {
@@ -222,7 +203,6 @@ public final class KikiProAccessManager: ObservableObject {
             }
 
             if status.isPro {
-                defaults.set(true, forKey: configuration.storageKeys.hasCompletedOnboarding)
                 paywallSuccessMessage = configuration.messages.restoreSuccess
             }
         } catch {
@@ -255,7 +235,6 @@ public final class KikiProAccessManager: ObservableObject {
 
     public func setDebugProAccessOverride(_ isPro: Bool) {
         defaults.set(isPro, forKey: configuration.storageKeys.debugProAccessOverride)
-        defaults.set(true, forKey: configuration.storageKeys.hasCompletedOnboarding)
         debugProAccessOverride = isPro
         clearPaywallMessages()
         applyStatus(computeStatus())
