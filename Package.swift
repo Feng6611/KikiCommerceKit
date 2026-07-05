@@ -17,12 +17,9 @@ let package = Package(
             url: "https://github.com/RevenueCat/purchases-ios-spm.git",
             exact: "5.67.0"
         ),
-        // TODO: switch to `.upToNextMinor(from: "0.7.0")` once Kiki_mackit 0.7.0
-        // is tagged after the Cat Lock reference migration validates the API.
-        // Local dev: `swift package edit Kiki_mackit` to point at a local checkout.
         .package(
             url: "https://github.com/Feng6611/Kiki_mackit.git",
-            branch: "main"
+            exact: "0.7.0"
         )
     ],
     targets: [

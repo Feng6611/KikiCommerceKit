@@ -122,7 +122,7 @@ final class RevenueCatSnapshotMapperTests: XCTestCase {
         )
 
         XCTAssertEqual(entitlement, CommerceEntitlement(
-            plan: .yearly,
+            plan: CommercePlan("unmapped.custom.subscription"),
             productIdentifier: "custom.subscription",
             entitlementIdentifier: "promo-pro",
             expirationDate: expirationDate,
@@ -178,7 +178,7 @@ final class RevenueCatSnapshotMapperTests: XCTestCase {
         XCTAssertNil(entitlement)
     }
 
-    func testParserInfersLifetimeForUnknownProductsWithoutExpiration() {
+    func testParserPreservesUnknownProductIdentityWithoutExpiration() {
         let customerInfo = makeCustomerInfo(entitlements: [
             makeEntitlement(
                 identifier: configuration.entitlementIdentifier,
@@ -194,7 +194,7 @@ final class RevenueCatSnapshotMapperTests: XCTestCase {
             logger: .init(subsystem: "RevenueCatCommerceKitTests", category: "Tests")
         )
 
-        XCTAssertEqual(entitlement?.plan, .lifetime)
+        XCTAssertEqual(entitlement?.plan, CommercePlan("unmapped.custom.product"))
         XCTAssertEqual(entitlement?.willRenew, false)
     }
 

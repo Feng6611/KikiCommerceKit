@@ -1,29 +1,132 @@
-import AppKit
+import Combine
 import KikiCommerceCore
 import KikiPaywall
 import SwiftUI
 
+enum KikiProPaywallActionKind: Equatable {
+    case purchase
+    case startTrial
+    case restore
+    case dismiss
+}
+
+struct KikiProPaywallActionPolicy: Equatable {
+    let primary: KikiProPaywallActionKind
+    let secondary: [KikiProPaywallActionKind]
+
+    static func resolve(
+        status: KikiProAccessStatus,
+        context: KikiProPaywallPresentationContext
+    ) -> Self {
+        if status.isPro {
+            return Self(primary: .dismiss, secondary: [])
+        }
+
+        if context == .onboarding, status.canStartTrial {
+            return Self(primary: .startTrial, secondary: [.restore])
+        }
+
+        if context == .settings, status.canStartTrial {
+            return Self(primary: .purchase, secondary: [.startTrial, .restore])
+        }
+
+        return Self(primary: .purchase, secondary: [.restore])
+    }
+}
+
+@MainActor
+final class KikiProPaywallWorkflow: ObservableObject {
+    @Published private(set) var isLoadingOfferings = false
+    @Published private(set) var isStartingTrial = false
+
+    private let manager: KikiProAccessManager
+
+    init(manager: KikiProAccessManager) {
+        self.manager = manager
+    }
+
+    var isBusy: Bool {
+        isLoadingOfferings
+            || isStartingTrial
+            || manager.purchaseInProgressPlanID != nil
+            || manager.isRestoringPurchases
+    }
+
+    func loadOfferings() async {
+        guard !isBusy else {
+            return
+        }
+
+        isLoadingOfferings = true
+        defer { isLoadingOfferings = false }
+        await manager.loadOfferings()
+    }
+
+    func purchase(planID: String) async -> Bool {
+        guard !isBusy else {
+            return false
+        }
+
+        do {
+            try await manager.purchase(planID: planID)
+            return manager.status.isPro
+        } catch {
+            return false
+        }
+    }
+
+    func restorePurchases() async -> Bool {
+        guard !isBusy else {
+            return false
+        }
+
+        do {
+            try await manager.restorePurchases()
+            return manager.status.isPro
+        } catch {
+            return false
+        }
+    }
+
+    func startTrial() async -> Bool {
+        guard !isBusy else {
+            return false
+        }
+
+        isStartingTrial = true
+        defer { isStartingTrial = false }
+        await manager.startTrial()
+        return manager.status.isActive
+    }
+}
+
 public struct KikiProPaywallSheet: View {
     @ObservedObject private var manager: KikiProAccessManager
+    @StateObject private var workflow: KikiProPaywallWorkflow
     private let context: KikiProPaywallPresentationContext
     private let copy: KikiProPaywallCopy
+    private let footerLinks: [KikiProPaywallLink]
     private let tint: Color
     private let onFinish: () -> Void
 
+    @Environment(\.dismiss) private var dismiss
     @State private var selectedPlanID: String
 
     public init(
         manager: KikiProAccessManager,
         context: KikiProPaywallPresentationContext,
         copy: KikiProPaywallCopy = KikiProPaywallCopy(),
+        footerLinks: [KikiProPaywallLink] = [],
         tint: Color = .accentColor,
         onFinish: @escaping () -> Void = {}
     ) {
         self.manager = manager
         self.context = context
         self.copy = copy
+        self.footerLinks = footerLinks
         self.tint = tint
         self.onFinish = onFinish
+        _workflow = StateObject(wrappedValue: KikiProPaywallWorkflow(manager: manager))
         _selectedPlanID = State(initialValue: manager.configuration.defaultPlanID)
     }
 
@@ -42,6 +145,14 @@ public struct KikiProPaywallSheet: View {
                 )
             }
         }
+        .task {
+            await workflow.loadOfferings()
+            syncSelectedPlan()
+        }
+        .onChange(of: manager.availablePlans) { _ in
+            syncSelectedPlan()
+        }
+        .interactiveDismissDisabled(context == .onboarding)
     }
 
     private func makePresentation() -> KikiPaywallPresentation {
@@ -52,9 +163,14 @@ public struct KikiProPaywallSheet: View {
             plans: plans,
             features: copy.features,
             footnote: nil,
-            isPurchaseInFlight: manager.purchaseInProgressPlanID != nil,
-            isRestoreInFlight: manager.isRestoringPurchases,
-            actions: actions
+            footerLinks: footerLinks.map {
+                KikiPaywallLinkPresentation(id: $0.id, title: $0.title, url: $0.url)
+            },
+            message: message,
+            isInteractionDisabled: workflow.isBusy,
+            primaryAction: primaryAction,
+            secondaryActions: secondaryActions,
+            dismiss: finish
         )
     }
 
@@ -62,8 +178,8 @@ public struct KikiProPaywallSheet: View {
         switch manager.status {
         case .notStarted:
             return .notStarted
-        case .trial(let daysRemaining, _):
-            return .trial(daysRemaining: daysRemaining)
+        case .trial:
+            return .trial
         case .expired:
             return .expired
         case .pro(let plan, _):
@@ -97,25 +213,134 @@ public struct KikiProPaywallSheet: View {
         }
     }
 
-    private var actions: KikiPaywallActions {
-        KikiPaywallActions(
-            purchase: { planID in
-                Task<Void, Never> { try? await manager.purchase(planID: planID) }
+    private var primaryAction: KikiPaywallActionPresentation {
+        actionPresentation(for: actionPolicy.primary)
+    }
+
+    private var secondaryActions: [KikiPaywallActionPresentation] {
+        actionPolicy.secondary.map(actionPresentation(for:))
+    }
+
+    private var actionPolicy: KikiProPaywallActionPolicy {
+        .resolve(status: manager.status, context: context)
+    }
+
+    private func actionPresentation(
+        for kind: KikiProPaywallActionKind
+    ) -> KikiPaywallActionPresentation {
+        switch kind {
+        case .purchase:
+            return purchaseAction
+        case .startTrial:
+            return trialAction
+        case .restore:
+            return restoreAction
+        case .dismiss:
+            return KikiPaywallActionPresentation(
+                title: copy.doneActionTitle,
+                action: finish
+            )
+        }
+    }
+
+    private var purchaseAction: KikiPaywallActionPresentation {
+        KikiPaywallActionPresentation(
+            title: copy.purchaseActionTitle,
+            isLoading: manager.purchaseInProgressPlanID != nil,
+            isEnabled: { planID in
+                manager.planProduct(for: planID).isAvailable
             },
-            restore: {
-                Task<Void, Never> { try? await manager.restorePurchases() }
-            },
-            startTrial: startTrialAction,
-            dismiss: onFinish
+            action: { planID in
+                run {
+                    await workflow.purchase(planID: planID)
+                }
+            }
         )
     }
 
-    private var startTrialAction: (@MainActor () -> Void)? {
-        guard manager.status.canStartTrial else {
-            return nil
+    private var trialAction: KikiPaywallActionPresentation {
+        KikiPaywallActionPresentation(
+            title: copy.trialActionTitle,
+            isLoading: workflow.isStartingTrial,
+            action: {
+                run {
+                    await workflow.startTrial()
+                }
+            }
+        )
+    }
+
+    private var restoreAction: KikiPaywallActionPresentation {
+        KikiPaywallActionPresentation(
+            title: copy.restoreActionTitle,
+            isLoading: manager.isRestoringPurchases,
+            action: {
+                run {
+                    await workflow.restorePurchases()
+                }
+            }
+        )
+    }
+
+    private func run(_ operation: @escaping @MainActor () async -> Bool) {
+        Task<Void, Never> {
+            if await operation() {
+                finish()
+            }
         }
-        return {
-            Task<Void, Never> { await manager.startTrial() }
+    }
+
+    private var message: KikiPaywallMessagePresentation? {
+        if let feedback = manager.commerceFeedback {
+            switch feedback {
+            case .purchaseSucceeded:
+                return KikiPaywallMessagePresentation(
+                    text: copy.purchaseSuccessMessage,
+                    tone: .success
+                )
+            case .restoreSucceeded:
+                return KikiPaywallMessagePresentation(
+                    text: copy.restoreSuccessMessage,
+                    tone: .success
+                )
+            case .noActivePurchase:
+                return KikiPaywallMessagePresentation(
+                    text: copy.noActivePurchaseMessage,
+                    tone: .warning
+                )
+            case .error:
+                return KikiPaywallMessagePresentation(
+                    text: copy.purchaseErrorMessage,
+                    tone: .danger
+                )
+            }
         }
+        if workflow.isLoadingOfferings {
+            return KikiPaywallMessagePresentation(text: copy.loadingOptionsMessage)
+        }
+        if manager.availablePlans.allSatisfy({ !$0.isAvailable }),
+           manager.status.canStartTrial == false {
+            return KikiPaywallMessagePresentation(
+                text: copy.unavailableOptionsMessage
+            )
+        }
+        return nil
+    }
+
+    private func syncSelectedPlan() {
+        if manager.planProduct(for: selectedPlanID).isAvailable {
+            return
+        }
+
+        if let firstAvailablePlan = manager.availablePlans.first(where: \.isAvailable) {
+            selectedPlanID = firstAvailablePlan.id
+        }
+    }
+
+    private func finish() {
+        if context == .settings {
+            dismiss()
+        }
+        onFinish()
     }
 }

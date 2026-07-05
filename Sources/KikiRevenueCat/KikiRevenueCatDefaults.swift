@@ -6,6 +6,7 @@ extension KikiProAccessManager {
         configuration: KikiProAccessConfiguration,
         revenueCatConfiguration: RevenueCatConfiguration,
         defaults: UserDefaults = .standard,
+        usageMeter: (any KikiUsageMeter)? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         let client = RevenueCatCommerceClient(
@@ -16,6 +17,7 @@ extension KikiProAccessManager {
             configuration: configuration,
             defaults: defaults,
             commerceClient: client,
+            usageMeter: usageMeter,
             now: now
         )
     }

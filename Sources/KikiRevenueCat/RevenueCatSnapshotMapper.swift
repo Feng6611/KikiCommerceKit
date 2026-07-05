@@ -33,7 +33,7 @@ enum RevenueCatSnapshotMapper {
             productIdentifier: entitlement.productIdentifier,
             entitlementIdentifier: entitlement.identifier,
             expirationDate: entitlement.expirationDate,
-            willRenew: plan == .yearly && entitlement.willRenew,
+            willRenew: entitlement.willRenew,
             originalPurchaseDate: entitlement.originalPurchaseDate
         )
     }
@@ -86,7 +86,7 @@ enum RevenueCatSnapshotMapper {
     ) -> CommerceOffering {
         var products: [CommerceProduct] = []
 
-        for plan in CommercePlan.allCases {
+        for plan in configuration.productIdentifiers.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             guard let package = offering.package(for: plan, configuration: configuration) else {
                 continue
             }
@@ -108,15 +108,13 @@ enum RevenueCatSnapshotMapper {
         for entitlement: EntitlementInfo,
         configuration: CommerceConfiguration
     ) -> CommercePlan {
-        if entitlement.productIdentifier == configuration.productIdentifiers[.lifetime] {
-            return .lifetime
+        if let matchedPlan = configuration.productIdentifiers.first(where: {
+            $0.value == entitlement.productIdentifier
+        })?.key {
+            return matchedPlan
         }
 
-        if entitlement.productIdentifier == configuration.productIdentifiers[.yearly] {
-            return .yearly
-        }
-
-        return entitlement.expirationDate == nil ? .lifetime : .yearly
+        return CommercePlan("unmapped.\(entitlement.productIdentifier)")
     }
 
     private nonisolated static func preferredEntitlementOrder(_ lhs: EntitlementInfo, _ rhs: EntitlementInfo) -> Bool {
@@ -164,6 +162,8 @@ extension Offering {
     }
 
     func hasConfiguredProducts(configuration: CommerceConfiguration) -> Bool {
-        CommercePlan.allCases.contains { package(for: $0, configuration: configuration) != nil }
+        configuration.productIdentifiers.keys.contains {
+            package(for: $0, configuration: configuration) != nil
+        }
     }
 }

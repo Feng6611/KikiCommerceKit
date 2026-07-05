@@ -21,7 +21,14 @@ struct KikiProAccessManagerTests {
         await manager.startTrial()
 
         #expect(fixture.defaults.object(forKey: fixture.storageKeys.trialStartedAt) as? Date == start)
-        #expect(manager.status == .trial(daysRemaining: 2, expiresAt: start.addingTimeInterval(Fixture.trialDuration)))
+        #expect(
+            manager.status == .trial(
+                .time(
+                    daysRemaining: 2,
+                    expiresAt: start.addingTimeInterval(Fixture.trialDuration)
+                )
+            )
+        )
     }
 
     @Test("Expired trial resolves to expired")
@@ -39,7 +46,10 @@ struct KikiProAccessManagerTests {
     @Test("Purchase success unlocks pro and preserves purchase date")
     func purchaseSuccessUnlocksProAndPreservesPurchaseDate() async throws {
         let purchaseDate = Date(timeIntervalSince1970: 2_000)
-        let entitlement = Fixture.entitlement(plan: .lifetime, originalPurchaseDate: purchaseDate)
+        let entitlement = Fixture.entitlement(
+            plan: CommercePlan("supporterLifetime"),
+            originalPurchaseDate: purchaseDate
+        )
         let client = MockCommerceClient()
         client.purchaseEntitlement = entitlement
         let fixture = Fixture(client: client)
@@ -67,7 +77,7 @@ struct KikiProAccessManagerTests {
             try await manager.purchase(planID: "supporterLifetime")
         }
         #expect(client.refreshEntitlementCallCount == KikiProAccessManager.Constants.transactionRefreshAttempts)
-        #expect(manager.paywallErrorMessage == CommercePurchaseError.activationPending.errorDescription)
+        #expect(manager.commerceFeedback == .error(.activationPending))
     }
 
     @Test("Restore without entitlement shows no active purchase")
@@ -80,7 +90,7 @@ struct KikiProAccessManagerTests {
         try await manager.restorePurchases()
 
         #expect(manager.status == .notStarted)
-        #expect(manager.paywallErrorMessage == fixture.configuration.messages.noActivePurchase)
+        #expect(manager.commerceFeedback == .noActivePurchase)
     }
 
     @Test("Network offering error keeps fallback plans available")
@@ -106,6 +116,23 @@ struct KikiProAccessManagerTests {
         await manager.loadOfferings()
 
         #expect(manager.availablePlans.allSatisfy { !$0.isAvailable })
+    }
+
+    @Test("Usage trial expires exactly at its configured limit")
+    func usageTrialExpiresAtLimit() {
+        let fixture = Fixture(
+            trialPolicy: .usage(eventID: "reopen", limit: 2)
+        )
+        let manager = fixture.makeManager()
+
+        #expect(manager.status == .trial(.usage(eventID: "reopen", used: 0, limit: 2)))
+
+        manager.recordUsage(eventID: "reopen")
+        #expect(manager.status == .trial(.usage(eventID: "reopen", used: 1, limit: 2)))
+
+        manager.recordUsage(eventID: "reopen")
+        #expect(manager.status == .expired)
+        #expect(manager.usage(for: "reopen") == 2)
     }
 
 #if DEBUG
@@ -195,10 +222,12 @@ final class Fixture {
     let storageKeys: KikiProAccessStorageKeys
     let configuration: KikiProAccessConfiguration
     let client: MockCommerceClient
+    let usageMeter: KikiInMemoryUsageMeter
     let now: () -> Date
 
     init(
         client: MockCommerceClient? = nil,
+        trialPolicy: KikiTrialPolicy = .explicitStart(duration: 2 * 24 * 60 * 60),
         now: @escaping () -> Date = { Date(timeIntervalSince1970: 1_000) }
     ) {
         let suiteName = "KikiCommerceCoreTests.\(UUID().uuidString)"
@@ -208,12 +237,15 @@ final class Fixture {
         self.defaults = defaults
         self.storageKeys = .prefixed("KikiCommerceCoreTests.Pro")
         self.client = client ?? MockCommerceClient()
+        self.usageMeter = KikiInMemoryUsageMeter()
         self.now = now
+        let lifetime = CommercePlan("lifetime")
+        let supporterLifetime = CommercePlan("supporterLifetime")
         self.configuration = KikiProAccessConfiguration(
             plans: [
                 KikiProPlan(
                     id: "lifetime",
-                    commercePlan: .yearly,
+                    commercePlan: lifetime,
                     title: "Lifetime",
                     fallbackDisplayPrice: "$5.99",
                     billingDetail: "one-time purchase",
@@ -221,7 +253,7 @@ final class Fixture {
                 ),
                 KikiProPlan(
                     id: "supporterLifetime",
-                    commercePlan: .lifetime,
+                    commercePlan: supporterLifetime,
                     title: "Supporter Lifetime",
                     fallbackDisplayPrice: "$10.99",
                     billingDetail: "one-time purchase",
@@ -233,11 +265,11 @@ final class Fixture {
             commerceConfiguration: CommerceConfiguration(
                 entitlementIdentifier: "pro",
                 productIdentifiers: [
-                    .yearly: "dev.kkuk.test.pro.yearly",
-                    .lifetime: "dev.kkuk.test.pro.lifetime"
+                    lifetime: "dev.kkuk.test.pro.lifetime",
+                    supporterLifetime: "dev.kkuk.test.pro.supporter"
                 ]
             ),
-            trialPolicy: .explicitStart(duration: Self.trialDuration),
+            trialPolicy: trialPolicy,
             storageKeys: storageKeys
         )
     }
@@ -247,6 +279,7 @@ final class Fixture {
             configuration: configuration,
             defaults: defaults,
             commerceClient: client,
+            usageMeter: usageMeter,
             now: now
         )
     }

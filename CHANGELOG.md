@@ -4,7 +4,7 @@
 
 ### Added
 - Initial release. Merges the former `RevenueCatCommerceKit` package and the `KikiCommerce` target from `Kiki_mackit` into a single layered package with three libraries:
-  - `KikiCommerceCore` — abstractions: `CommerceClient`, `CommerceConfiguration`, `CommerceEntitlement`, `CommercePlan`, `CommercePurchaseError`, `LegacyPaidAppConfiguration`, `KikiProAccessManager`, `KikiProAccessConfiguration`, `KikiProPaywallCopy/Layout`. No RevenueCat dependency. `CommerceConfiguration` carries only generic StoreKit-level config (entitlement identifier, product identifiers, matching policy, legacy paid app, log); RevenueCat-specific config lives in `KikiRevenueCat.RevenueCatConfiguration`.
+  - `KikiCommerceCore` — provider-neutral access workflow: `CommerceClient`, `CommerceConfiguration`, `CommerceEntitlement`, `CommercePlan`, `CommercePurchaseError`, `LegacyPaidAppConfiguration`, `KikiProAccessManager`, and `KikiProAccessConfiguration`. No RevenueCat or SwiftUI dependency. `CommerceConfiguration` carries only generic StoreKit-level config (entitlement identifier, product identifiers, matching policy, legacy paid app, log); RevenueCat-specific config lives in `KikiRevenueCat.RevenueCatConfiguration`.
   - `KikiRevenueCat` — `RevenueCatConfiguration`, `RevenueCatCommerceClient`, `RevenueCatSnapshotMapper`, `LegacyPaidAppEntitlementSource` (`AppTransaction` grandfathering only), `CommercePurchaseError.from(revenueCatError:)`, and a convenience `KikiProAccessManager.init(configuration:revenueCatConfiguration:defaults:now:)` that wires up `RevenueCatCommerceClient`.
   - `KikiCommercePresentation` — `KikiProPaywallSheet`, a thin adapter that maps `KikiProAccessManager` state to `KikiPaywallPresentation` and renders Kit's `KikiCompactPaywall` (settings context) or `KikiOnboardingPaywall` (onboarding context). No second paywall UI.
 
@@ -18,8 +18,22 @@
 - The `KikiCommerce` target inside `Kiki_mackit` is removed. Replace `import KikiCommerce` with `import KikiCommerceCore` (manager + models) and `import KikiCommercePresentation` (paywall views).
 
 ### Changed (vs. initial 0.1.0 commit)
-- `CommerceConfiguration` no longer carries RevenueCat-specific fields (`apiKey`, `offeringIdentifier`, `allowsTestAPIKeyInRelease`, `showStoreMessagesAutomatically`, `requestTimeoutNanoseconds`, `invalidReceiptRecoveryDelayNanoseconds`). These moved to `KikiRevenueCat.RevenueCatConfiguration`. `CommerceConfiguration.standardPro(apiKey:bundleIdentifier:...)` is now `RevenueCatConfiguration.standardPro(apiKey:bundleIdentifier:)` plus `CommerceConfiguration.standardPro(bundleIdentifier:)`.
+- `CommerceConfiguration` no longer carries RevenueCat-specific fields (`apiKey`, `offeringIdentifier`, `allowsTestAPIKeyInRelease`, `showStoreMessagesAutomatically`, `requestTimeoutNanoseconds`, `invalidReceiptRecoveryDelayNanoseconds`). These moved to `KikiRevenueCat.RevenueCatConfiguration`. Configuration is now split between `RevenueCatConfiguration.standardPro(apiKey:)` and `CommerceConfiguration.standardPro(bundleIdentifier:)`.
 - `RevenueCatCommerceClient.init` now takes both `configuration: CommerceConfiguration` and `revenueCatConfiguration: RevenueCatConfiguration`.
 - `KikiProAccessManager` convenience init in `KikiRevenueCat` now takes `revenueCatConfiguration:` explicitly: `KikiProAccessManager(configuration:revenueCatConfiguration:defaults:now:)`.
 - `KikiProAccessManager` no longer tracks onboarding completion. `hasCompletedOnboarding`, `shouldShowOnboarding`, and `completeOnboardingWithoutTrial()` are gone; `KikiProAccessStorageKeys` dropped the `hasCompletedOnboarding` key. Apps should route onboarding completion through Kit's `OnboardingFlow.CompletionStore` and observe `manager.status` for purchase/restore success.
-- `KikiCommercePresentation` is now a thin adapter (97 lines, down from 587). `KikiProUpgradeCard` and `KikiProStatusCard` are removed; apps build status UI from Kit's atoms. `KikiProExternalLinks` and `KikiProPaywallLayout` are removed (Kit's presets handle layout). `KikiProPaywallCopy` and `KikiProPaywallPresentationContext` moved from Core to Presentation. `KikiProPaywallCopy` dropped `proCardTitle` / `proCardSubtitle` (no longer needed without `KikiProUpgradeCard`).
+- `KikiCommercePresentation` is now an orchestration adapter over Kit presets instead of a second paywall implementation. `KikiProUpgradeCard` and `KikiProStatusCard` are removed; apps build status UI from Kit's atoms. `KikiProExternalLinks` and `KikiProPaywallLayout` are removed (Kit's presets handle layout). `KikiProPaywallCopy` and `KikiProPaywallPresentationContext` moved from Core to Presentation. `KikiProPaywallCopy` dropped `proCardTitle` / `proCardSubtitle` (no longer needed without `KikiProUpgradeCard`).
+- Restored the reusable paywall workflow contract after the preset migration: offerings load on presentation, unavailable plans cannot be purchased, purchase/restore/trial operations are serialized, manager feedback is rendered, and successful access changes complete the host flow.
+- Entitled paywalls now use the generic dismiss action instead of presenting a misleading “Manage subscription” button wired to purchase.
+- `CommercePlan` is now an open `RawRepresentable` string identity. The
+  `.yearly` / `.lifetime` values remain conveniences, while catalogs can add
+  monthly, multiple lifetime tiers, or other plans without changing Core.
+- Trial policy now supports time-, usage-, and disabled modes. Usage trials use
+  an injected `KikiUsageMeter`, and the app records semantically named events.
+- Commerce Core now emits semantic `KikiCommerceFeedback`; paywall success,
+  empty-restore, and error copy is supplied by
+  `KikiCommercePresentation.KikiProPaywallCopy`.
+- Paywall presentation accepts ordered Terms/Privacy/Support links and uses
+  explicit context policies: Settings offers purchase/trial/restore;
+  onboarding prioritizes trial; entitled state dismisses.
+- Coordinated local integration uses the same adjacent Kiki_mackit checkout as the reference app, avoiding duplicate SwiftPM package identities. Release builds must switch both packages to the same tagged HTTPS version.

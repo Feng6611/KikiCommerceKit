@@ -26,7 +26,6 @@ public struct RevenueCatConfiguration: Sendable {
 
     public static func standardPro(
         apiKey: String,
-        bundleIdentifier: String,
         offeringIdentifier: String = "default"
     ) -> Self {
         Self(
@@ -41,11 +40,9 @@ public struct RevenueCatConfiguration: Sendable {
         offeringIdentifier: String = "default"
     ) -> Self {
         let apiKey = (bundle.object(forInfoDictionaryKey: apiKeyInfoDictionaryKey) as? String) ?? ""
-        let bundleIdentifier = bundle.bundleIdentifier ?? "KikiCommerceCore"
 
         return standardPro(
             apiKey: apiKey,
-            bundleIdentifier: bundleIdentifier,
             offeringIdentifier: offeringIdentifier
         )
     }

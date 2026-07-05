@@ -13,8 +13,7 @@ public final class KikiProAccessManager: ObservableObject {
     @Published public private(set) var lastError: CommercePurchaseError?
     @Published public private(set) var purchaseInProgressPlanID: String?
     @Published public private(set) var isRestoringPurchases = false
-    @Published public private(set) var paywallErrorMessage: String?
-    @Published public private(set) var paywallSuccessMessage: String?
+    @Published public private(set) var commerceFeedback: KikiCommerceFeedback?
 #if DEBUG
     @Published public private(set) var debugProAccessOverride: Bool?
 #endif
@@ -27,6 +26,7 @@ public final class KikiProAccessManager: ObservableObject {
 
     private let defaults: UserDefaults
     private let commerceClient: any CommerceClient
+    private let usageMeter: any KikiUsageMeter
     private let now: () -> Date
 
     private var entitlementSnapshot: CommerceEntitlement?
@@ -38,12 +38,17 @@ public final class KikiProAccessManager: ObservableObject {
         configuration: KikiProAccessConfiguration,
         defaults: UserDefaults = .standard,
         commerceClient: any CommerceClient,
+        usageMeter: (any KikiUsageMeter)? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         let client = commerceClient
         self.configuration = configuration
         self.defaults = defaults
         self.commerceClient = client
+        self.usageMeter = usageMeter ?? KikiUserDefaultsUsageMeter(
+            defaults: defaults,
+            keyPrefix: configuration.storageKeys.usageCountPrefix
+        )
         self.now = now
         self.entitlementSnapshot = client.cachedEntitlement
         self.currentOffering = nil
@@ -53,8 +58,7 @@ public final class KikiProAccessManager: ObservableObject {
         )
         self.lastError = nil
         self.purchaseInProgressPlanID = nil
-        self.paywallErrorMessage = nil
-        self.paywallSuccessMessage = nil
+        self.commerceFeedback = nil
 #if DEBUG
         self.debugProAccessOverride = Self.readDebugProAccessOverride(
             defaults: defaults,
@@ -66,6 +70,7 @@ public final class KikiProAccessManager: ObservableObject {
             configuration: configuration,
             entitlementSnapshot: client.cachedEntitlement,
             defaults: defaults,
+            usageMeter: self.usageMeter,
             now: now
         )
         scheduleExpirationIfNeeded()
@@ -132,11 +137,11 @@ public final class KikiProAccessManager: ObservableObject {
     }
 
     public func startTrial() async {
-        clearPaywallMessages()
+        clearCommerceFeedback()
         guard status.canStartTrial else {
             return
         }
-        guard case .explicitStart = configuration.trialPolicy else {
+        guard case .time(_, startsOn: .explicit) = configuration.trialPolicy else {
             return
         }
 
@@ -144,9 +149,25 @@ public final class KikiProAccessManager: ObservableObject {
         applyStatus(computeStatus())
     }
 
+    public func recordUsage(eventID: String) {
+        guard case .usage(let configuredEventID, _) = configuration.trialPolicy,
+              configuredEventID == eventID,
+              status.isPro == false,
+              status.isActive else {
+            return
+        }
+
+        usageMeter.record(eventID: eventID)
+        applyStatus(computeStatus())
+    }
+
+    public func usage(for eventID: String) -> Int {
+        usageMeter.usage(for: eventID)
+    }
+
     public func purchase(planID: String) async throws {
         configureIfNeeded()
-        clearPaywallMessages()
+        clearCommerceFeedback()
         guard let plan = plan(for: planID) else {
             throw CommercePurchaseError.unknown("Unknown plan id: \(planID)")
         }
@@ -168,20 +189,19 @@ public final class KikiProAccessManager: ObservableObject {
             }
 
             if status.isPro {
-                paywallSuccessMessage = configuration.messages.purchaseSuccess
+                commerceFeedback = .purchaseSucceeded
             }
         } catch {
             let purchaseError = CommercePurchaseError(error: error)
             lastError = purchaseError
-            paywallErrorMessage = purchaseError == .purchaseCancelled ? nil : purchaseError.errorDescription
-            paywallSuccessMessage = nil
+            commerceFeedback = purchaseError == .purchaseCancelled ? nil : .error(purchaseError)
             throw purchaseError
         }
     }
 
     public func restorePurchases() async throws {
         configureIfNeeded()
-        clearPaywallMessages()
+        clearCommerceFeedback()
         isRestoringPurchases = true
         defer { isRestoringPurchases = false }
 
@@ -198,18 +218,17 @@ public final class KikiProAccessManager: ObservableObject {
                         throw CommercePurchaseError.activationPending
                     }
                 } else {
-                    paywallErrorMessage = configuration.messages.noActivePurchase
+                    commerceFeedback = .noActivePurchase
                 }
             }
 
             if status.isPro {
-                paywallSuccessMessage = configuration.messages.restoreSuccess
+                commerceFeedback = .restoreSucceeded
             }
         } catch {
             let purchaseError = CommercePurchaseError(error: error)
             lastError = purchaseError
-            paywallErrorMessage = purchaseError == .purchaseCancelled ? nil : purchaseError.errorDescription
-            paywallSuccessMessage = nil
+            commerceFeedback = purchaseError == .purchaseCancelled ? nil : .error(purchaseError)
             throw purchaseError
         }
     }
@@ -236,14 +255,14 @@ public final class KikiProAccessManager: ObservableObject {
     public func setDebugProAccessOverride(_ isPro: Bool) {
         defaults.set(isPro, forKey: configuration.storageKeys.debugProAccessOverride)
         debugProAccessOverride = isPro
-        clearPaywallMessages()
+        clearCommerceFeedback()
         applyStatus(computeStatus())
     }
 
     public func clearDebugProAccessOverride() {
         defaults.removeObject(forKey: configuration.storageKeys.debugProAccessOverride)
         debugProAccessOverride = nil
-        clearPaywallMessages()
+        clearCommerceFeedback()
         applyStatus(computeStatus())
     }
 #endif
@@ -273,25 +292,15 @@ public final class KikiProAccessManager: ObservableObject {
     }
 
     private var defaultPlan: KikiProPlan {
-        configuration.plans.first(where: { $0.id == configuration.defaultPlanID })
-            ?? configuration.plans.first
-            ?? KikiProPlan(
-                id: "lifetime",
-                commercePlan: .lifetime,
-                title: "Lifetime",
-                fallbackDisplayPrice: "",
-                billingDetail: "once",
-                subtitle: "Pay once, use forever"
-            )
+        Self.defaultPlan(in: configuration)
     }
 
     private func plan(for planID: String) -> KikiProPlan? {
         configuration.plans.first { $0.id == planID }
     }
 
-    private func clearPaywallMessages() {
-        paywallErrorMessage = nil
-        paywallSuccessMessage = nil
+    private func clearCommerceFeedback() {
+        commerceFeedback = nil
     }
 
     private func refreshEntitlementStateAfterTransaction() async -> Bool {
@@ -320,6 +329,7 @@ public final class KikiProAccessManager: ObservableObject {
             configuration: configuration,
             entitlementSnapshot: entitlementSnapshot,
             defaults: defaults,
+            usageMeter: usageMeter,
             now: now
         )
     }
@@ -333,7 +343,7 @@ public final class KikiProAccessManager: ObservableObject {
         expirationTask?.cancel()
         expirationTask = nil
 
-        guard case .trial(_, let expiresAt) = status else {
+        guard case .trial(.time(_, let expiresAt)) = status else {
             return
         }
 
@@ -351,46 +361,60 @@ public final class KikiProAccessManager: ObservableObject {
         configuration: KikiProAccessConfiguration,
         entitlementSnapshot: CommerceEntitlement?,
         defaults: UserDefaults,
+        usageMeter: any KikiUsageMeter,
         now: () -> Date
     ) -> KikiProAccessStatus {
 #if DEBUG
         if let debugProAccessOverride = readDebugProAccessOverride(defaults: defaults, keys: configuration.storageKeys) {
             return debugProAccessOverride ? .pro(
-                plan: configuration.plans.first(where: { $0.id == configuration.defaultPlanID })
-                    ?? configuration.plans.first!,
+                plan: defaultPlan(in: configuration),
                 entitlement: debugEntitlement(configuration: configuration)
             ) : .expired
         }
 #endif
 
-        if let entitlementSnapshot,
-           let plan = plan(for: entitlementSnapshot, in: configuration.plans) {
+        if let entitlementSnapshot {
+            let plan = plan(for: entitlementSnapshot, in: configuration.plans)
+                ?? defaultPlan(in: configuration)
             return .pro(plan: plan, entitlement: entitlementSnapshot)
         }
 
-        guard let duration = configuration.trialPolicy.duration else {
+        switch configuration.trialPolicy {
+        case .disabled:
             return .expired
-        }
-
-        guard let trialStartedAt = defaults.object(forKey: configuration.storageKeys.trialStartedAt) as? Date else {
-            switch configuration.trialPolicy {
-            case .explicitStart:
-                return .notStarted
-            case .autoStart:
-                return .notStarted
-            case .disabled:
+        case .usage(let eventID, let limit):
+            let safeLimit = max(0, limit)
+            let used = max(0, usageMeter.usage(for: eventID))
+            guard used < safeLimit else {
                 return .expired
             }
+            return .trial(.usage(eventID: eventID, used: used, limit: safeLimit))
+        case .time(let duration, let startsOn):
+            guard let trialStartedAt = defaults.object(
+                forKey: configuration.storageKeys.trialStartedAt
+            ) as? Date else {
+                switch startsOn {
+                case .explicit:
+                    return .notStarted
+                case .automatic:
+                    return .notStarted
+                }
+            }
+
+            let expiresAt = trialStartedAt.addingTimeInterval(duration)
+            let remaining = expiresAt.timeIntervalSince(now())
+
+            if remaining > 0 {
+                return .trial(
+                    .time(
+                        daysRemaining: max(1, Int(ceil(remaining / 86_400))),
+                        expiresAt: expiresAt
+                    )
+                )
+            }
+
+            return .expired
         }
-
-        let expiresAt = trialStartedAt.addingTimeInterval(duration)
-        let remaining = expiresAt.timeIntervalSince(now())
-
-        if remaining > 0 {
-            return .trial(daysRemaining: max(1, Int(ceil(remaining / 86_400))), expiresAt: expiresAt)
-        }
-
-        return .expired
     }
 
     private static func startAutoTrialIfNeeded(
@@ -398,7 +422,7 @@ public final class KikiProAccessManager: ObservableObject {
         defaults: UserDefaults,
         now: () -> Date
     ) {
-        guard case .autoStart = configuration.trialPolicy,
+        guard case .time(_, startsOn: .automatic) = configuration.trialPolicy,
               defaults.object(forKey: configuration.storageKeys.trialStartedAt) == nil else {
             return
         }
@@ -410,6 +434,19 @@ public final class KikiProAccessManager: ObservableObject {
         plans.first { plan in
             plan.commercePlan == entitlement.plan
         }
+    }
+
+    private static func defaultPlan(in configuration: KikiProAccessConfiguration) -> KikiProPlan {
+        configuration.plans.first(where: { $0.id == configuration.defaultPlanID })
+            ?? configuration.plans.first
+            ?? KikiProPlan(
+                id: "lifetime",
+                commercePlan: .lifetime,
+                title: "Lifetime",
+                fallbackDisplayPrice: "",
+                billingDetail: "once",
+                subtitle: "Pay once, use forever"
+            )
     }
 
     private static func packageMetadata(
@@ -464,8 +501,7 @@ public final class KikiProAccessManager: ObservableObject {
     }
 
     private static func debugEntitlement(configuration: KikiProAccessConfiguration) -> CommerceEntitlement {
-        let plan = configuration.plans.first(where: { $0.id == configuration.defaultPlanID })
-            ?? configuration.plans.first!
+        let plan = defaultPlan(in: configuration)
         return CommerceEntitlement(
             plan: plan.commercePlan,
             productIdentifier: "debug.\(plan.id)",

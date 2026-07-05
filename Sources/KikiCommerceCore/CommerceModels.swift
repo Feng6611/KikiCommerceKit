@@ -1,8 +1,18 @@
 import Foundation
 
-public enum CommercePlan: String, CaseIterable, Equatable, Sendable {
-    case yearly
-    case lifetime
+public struct CommercePlan: RawRepresentable, Hashable, Sendable {
+    public let rawValue: String
+
+    public init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public init(_ rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public static let yearly = CommercePlan("yearly")
+    public static let lifetime = CommercePlan("lifetime")
 }
 
 public struct CommerceProduct: Equatable, Identifiable, Sendable {
