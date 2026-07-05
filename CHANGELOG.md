@@ -37,3 +37,4 @@
   explicit context policies: Settings offers purchase/trial/restore;
   onboarding prioritizes trial; entitled state dismisses.
 - Coordinated local integration uses the same adjacent Kiki_mackit checkout as the reference app, avoiding duplicate SwiftPM package identities. Release builds must switch both packages to the same tagged HTTPS version.
+- Bumped `Kiki_mackit` exact-version pin to 0.7.1 to pick up the onboarding, settings, and paywall should-fix fixes.
