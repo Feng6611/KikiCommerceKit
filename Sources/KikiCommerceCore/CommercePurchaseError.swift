@@ -40,7 +40,7 @@ extension CommercePurchaseError: LocalizedError {
         case .network:
             "A network connection is required to load purchases."
         case .invalidCredentials:
-            "The RevenueCat API key is invalid."
+            "The commerce API key is invalid."
         case .productUnavailable:
             "This product is not available for purchase."
         case .unknown(let message):

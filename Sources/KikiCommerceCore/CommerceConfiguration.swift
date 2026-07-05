@@ -30,7 +30,7 @@ public struct CommerceConfiguration: Sendable {
         allowsTestAPIKeyInRelease: Bool = false,
         showStoreMessagesAutomatically: Bool = true,
         legacyPaidApp: LegacyPaidAppConfiguration = .disabled,
-        logSubsystem: String = Bundle.main.bundleIdentifier ?? "RevenueCatCommerceKit",
+        logSubsystem: String = Bundle.main.bundleIdentifier ?? "KikiCommerceCore",
         logCategory: String = "Commerce"
     ) {
         self.apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -73,7 +73,7 @@ public struct CommerceConfiguration: Sendable {
         offeringIdentifier: String = "default",
         productSuffix: String = "pro"
     ) -> Self {
-        let bundleIdentifier = bundle.bundleIdentifier ?? "RevenueCatCommerceKit"
+        let bundleIdentifier = bundle.bundleIdentifier ?? "KikiCommerceCore"
         let apiKey = (bundle.object(forInfoDictionaryKey: apiKeyInfoDictionaryKey) as? String) ?? ""
 
         return standardPro(
