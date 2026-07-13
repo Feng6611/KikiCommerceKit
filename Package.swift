@@ -10,7 +10,8 @@ let package = Package(
     products: [
         .library(name: "KikiCommerceCore", targets: ["KikiCommerceCore"]),
         .library(name: "KikiRevenueCat", targets: ["KikiRevenueCat"]),
-        .library(name: "KikiCommercePresentation", targets: ["KikiCommercePresentation"])
+        .library(name: "KikiCommercePresentation", targets: ["KikiCommercePresentation"]),
+        .library(name: "KikiCommerceTesting", targets: ["KikiCommerceTesting"])
     ],
     dependencies: [
         .package(
@@ -19,7 +20,7 @@ let package = Package(
         ),
         .package(
             url: "https://github.com/Feng6611/Kiki_mackit.git",
-            exact: "0.7.3"
+            exact: "0.8.0"
         )
     ],
     targets: [
@@ -38,6 +39,10 @@ let package = Package(
                 .product(name: "KikiPaywall", package: "Kiki_mackit")
             ]
         ),
+        .target(
+            name: "KikiCommerceTesting",
+            dependencies: ["KikiCommerceCore"]
+        ),
         .testTarget(
             name: "KikiCommerceCoreTests",
             dependencies: ["KikiCommerceCore"]
@@ -52,6 +57,10 @@ let package = Package(
         .testTarget(
             name: "KikiCommercePresentationTests",
             dependencies: ["KikiCommercePresentation"]
+        ),
+        .testTarget(
+            name: "KikiCommerceTestingTests",
+            dependencies: ["KikiCommerceCore", "KikiCommerceTesting"]
         )
     ]
 )

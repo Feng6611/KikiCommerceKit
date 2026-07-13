@@ -3,7 +3,48 @@ import KikiCommerceCore
 import Testing
 
 @MainActor
-struct KikiProAccessManagerTests {
+struct KikiAccessManagerTests {
+    @Test("Access readiness starts idle")
+    func readinessStartsIdle() {
+        let manager = Fixture().makeManager()
+
+        #expect(manager.readiness == .idle)
+        #expect(!manager.readiness.hasResolvedInitialRefresh)
+        #expect(!manager.readiness.allowsAutomaticPresentation)
+    }
+
+    @Test("Successful refresh makes access authoritative")
+    func successfulRefreshMakesAccessAuthoritative() async {
+        let entitlement = Fixture.entitlement(plan: .lifetime)
+        let client = MockCommerceClient()
+        client.fetchedEntitlement = entitlement
+        let manager = Fixture(client: client).makeManager()
+
+        await manager.refresh()
+
+        #expect(manager.readiness == .ready)
+        #expect(manager.readiness.hasResolvedInitialRefresh)
+        #expect(manager.readiness.allowsAutomaticPresentation)
+        #expect(manager.status.isPro)
+    }
+
+    @Test("Failed refresh keeps cached state but blocks automatic access UI")
+    func failedRefreshUsesDegradedReadiness() async {
+        let client = MockCommerceClient()
+        client.entitlementError = CommercePurchaseError.network
+        let manager = Fixture(client: client).makeManager()
+
+        await manager.refresh()
+
+        guard case .degraded = manager.readiness else {
+            Issue.record("Expected degraded readiness")
+            return
+        }
+        #expect(manager.readiness.hasResolvedInitialRefresh)
+        #expect(!manager.readiness.allowsAutomaticPresentation)
+        #expect(manager.status == .notStarted)
+    }
+
     @Test("Explicit trial starts as not started")
     func explicitTrialStartsAsNotStarted() {
         let fixture = Fixture()
@@ -76,7 +117,7 @@ struct KikiProAccessManagerTests {
         await #expect(throws: CommercePurchaseError.activationPending) {
             try await manager.purchase(planID: "supporterLifetime")
         }
-        #expect(client.refreshEntitlementCallCount == KikiProAccessManager.Constants.transactionRefreshAttempts)
+        #expect(client.refreshEntitlementCallCount == KikiAccessManager.Constants.transactionRefreshAttempts)
         #expect(manager.commerceFeedback == .error(.activationPending))
     }
 
@@ -219,8 +260,8 @@ final class Fixture {
     static let trialDuration: TimeInterval = 2 * 24 * 60 * 60
 
     let defaults: UserDefaults
-    let storageKeys: KikiProAccessStorageKeys
-    let configuration: KikiProAccessConfiguration
+    let storageKeys: KikiAccessStorageKeys
+    let configuration: KikiAccessConfiguration
     let client: MockCommerceClient
     let usageMeter: KikiInMemoryUsageMeter
     let now: () -> Date
@@ -241,9 +282,9 @@ final class Fixture {
         self.now = now
         let lifetime = CommercePlan("lifetime")
         let supporterLifetime = CommercePlan("supporterLifetime")
-        self.configuration = KikiProAccessConfiguration(
+        self.configuration = KikiAccessConfiguration(
             plans: [
-                KikiProPlan(
+                KikiAccessPlan(
                     id: "lifetime",
                     commercePlan: lifetime,
                     title: "Lifetime",
@@ -251,7 +292,7 @@ final class Fixture {
                     billingDetail: "one-time purchase",
                     subtitle: "Unlock all features"
                 ),
-                KikiProPlan(
+                KikiAccessPlan(
                     id: "supporterLifetime",
                     commercePlan: supporterLifetime,
                     title: "Supporter Lifetime",
@@ -274,8 +315,8 @@ final class Fixture {
         )
     }
 
-    func makeManager() -> KikiProAccessManager {
-        KikiProAccessManager(
+    func makeManager() -> KikiAccessManager {
+        KikiAccessManager(
             configuration: configuration,
             defaults: defaults,
             commerceClient: client,

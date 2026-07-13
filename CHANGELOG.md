@@ -1,6 +1,23 @@
 # Changelog
 
-## Unreleased — 0.1.0
+## Unreleased
+
+## 0.1.0 - 2026-07-14
+
+### Added
+
+- Product-neutral `KikiAccess*` public names with deprecated `KikiPro*`
+  compatibility aliases.
+- Explicit access readiness for safe first-launch routing and degraded offline
+  behavior.
+- `KikiCommerceTesting` with a deterministic in-memory Commerce client.
+
+### Changed
+
+- Commerce Presentation now exposes `KikiAccessPaywall*` names while continuing
+  to render Base Kit paywall presets.
+
+## Migration notes from the pre-release package
 
 ### Added
 - Initial release. Merges the former `RevenueCatCommerceKit` package and the `KikiCommerce` target from `Kiki_mackit` into a single layered package with three libraries:

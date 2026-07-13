@@ -1,9 +1,9 @@
 import Foundation
 import KikiCommerceCore
 
-extension KikiProAccessManager {
+extension KikiAccessManager {
     public convenience init(
-        configuration: KikiProAccessConfiguration,
+        configuration: KikiAccessConfiguration,
         revenueCatConfiguration: RevenueCatConfiguration,
         defaults: UserDefaults = .standard,
         usageMeter: (any KikiUsageMeter)? = nil,

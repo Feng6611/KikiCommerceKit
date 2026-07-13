@@ -2,27 +2,28 @@ import Combine
 import Foundation
 
 @MainActor
-public final class KikiProAccessManager: ObservableObject {
+public final class KikiAccessManager: ObservableObject {
     public enum Constants {
         public static let transactionRefreshAttempts = 3
         public static let transactionRefreshDelayNanoseconds: UInt64 = 750_000_000
     }
 
-    @Published public private(set) var status: KikiProAccessStatus
-    @Published public private(set) var availablePlans: [KikiProPlanProduct]
+    @Published public private(set) var status: KikiAccessState
+    @Published public private(set) var readiness: KikiAccessReadiness
+    @Published public private(set) var availablePlans: [KikiAccessPlanProduct]
     @Published public private(set) var lastError: CommercePurchaseError?
     @Published public private(set) var purchaseInProgressPlanID: String?
     @Published public private(set) var isRestoringPurchases = false
     @Published public private(set) var commerceFeedback: KikiCommerceFeedback?
 #if DEBUG
-    @Published public private(set) var debugProAccessOverride: KikiProAccessDebugMode?
+    @Published public private(set) var debugProAccessOverride: KikiAccessDebugMode?
 #endif
 
     public var currentEntitlementSnapshot: CommerceEntitlement? {
         entitlementSnapshot
     }
 
-    public let configuration: KikiProAccessConfiguration
+    public let configuration: KikiAccessConfiguration
 
     private let defaults: UserDefaults
     private let commerceClient: any CommerceClient
@@ -35,7 +36,7 @@ public final class KikiProAccessManager: ObservableObject {
     private var expirationTask: Task<Void, Never>?
 
     public init(
-        configuration: KikiProAccessConfiguration,
+        configuration: KikiAccessConfiguration,
         defaults: UserDefaults = .standard,
         commerceClient: any CommerceClient,
         usageMeter: (any KikiUsageMeter)? = nil,
@@ -51,6 +52,7 @@ public final class KikiProAccessManager: ObservableObject {
         )
         self.now = now
         self.entitlementSnapshot = client.cachedEntitlement
+        self.readiness = .idle
         self.currentOffering = nil
         self.availablePlans = Self.makeAvailablePlans(
             plans: configuration.plans,
@@ -87,6 +89,7 @@ public final class KikiProAccessManager: ObservableObject {
 
         commerceClient.entitlementDidChange = { [weak self] snapshot in
             self?.entitlementSnapshot = snapshot
+            self?.readiness = .ready
             self?.applyStatus(self?.computeStatus() ?? .expired)
         }
         commerceClient.configureIfNeeded()
@@ -98,12 +101,18 @@ public final class KikiProAccessManager: ObservableObject {
 
     public func refresh() async {
         configureIfNeeded()
+        readiness = .loading
 
         do {
             entitlementSnapshot = try await commerceClient.refreshEntitlement()
             lastError = nil
+            readiness = .ready
         } catch {
-            lastError = CommercePurchaseError(error: error)
+            let purchaseError = CommercePurchaseError(error: error)
+            lastError = purchaseError
+            readiness = .degraded(
+                message: purchaseError.errorDescription ?? "Entitlement refresh failed."
+            )
         }
 
         applyStatus(computeStatus())
@@ -179,6 +188,7 @@ public final class KikiProAccessManager: ObservableObject {
             let snapshot = try await commerceClient.purchase(plan.commercePlan)
             lastError = nil
             entitlementSnapshot = snapshot
+            readiness = .ready
             applyStatus(computeStatus())
 
             if !status.isPro {
@@ -209,6 +219,7 @@ public final class KikiProAccessManager: ObservableObject {
             let snapshot = try await commerceClient.restorePurchases()
             lastError = nil
             entitlementSnapshot = snapshot
+            readiness = .ready
             applyStatus(computeStatus())
 
             if !status.isPro {
@@ -233,14 +244,14 @@ public final class KikiProAccessManager: ObservableObject {
         }
     }
 
-    public func planProduct(for planID: String) -> KikiProPlanProduct {
+    public func planProduct(for planID: String) -> KikiAccessPlanProduct {
         availablePlans.first(where: { $0.id == planID })
-            ?? configuration.plans.first(where: { $0.id == planID }).map { KikiProPlanProduct.fallback(for: $0) }
-            ?? KikiProPlanProduct.fallback(for: defaultPlan)
+            ?? configuration.plans.first(where: { $0.id == planID }).map { KikiAccessPlanProduct.fallback(for: $0) }
+            ?? KikiAccessPlanProduct.fallback(for: defaultPlan)
     }
 
 #if DEBUG
-    public func setDebugProAccessOverride(_ mode: KikiProAccessDebugMode) {
+    public func setDebugProAccessOverride(_ mode: KikiAccessDebugMode) {
         defaults.set(mode.rawValue, forKey: configuration.storageKeys.debugProAccessOverride)
         debugProAccessOverride = mode
         clearCommerceFeedback()
@@ -256,12 +267,12 @@ public final class KikiProAccessManager: ObservableObject {
 #endif
 
     public static func makeAvailablePlans(
-        plans: [KikiProPlan],
-        packageMetadata: [String: KikiProPlanPackageMetadata]?,
+        plans: [KikiAccessPlan],
+        packageMetadata: [String: KikiAccessPlanPackageMetadata]?,
         offeringsAttempted: Bool = false
-    ) -> [KikiProPlanProduct] {
+    ) -> [KikiAccessPlanProduct] {
         plans.map { plan in
-            let fallback = KikiProPlanProduct.fallback(
+            let fallback = KikiAccessPlanProduct.fallback(
                 for: plan,
                 isAvailable: packageMetadata == nil && !offeringsAttempted
             )
@@ -270,7 +281,7 @@ public final class KikiProAccessManager: ObservableObject {
                 return fallback
             }
 
-            return KikiProPlanProduct(
+            return KikiAccessPlanProduct(
                 plan: plan,
                 displayPrice: metadata.displayPrice,
                 billingDetail: metadata.billingDetail,
@@ -279,11 +290,11 @@ public final class KikiProAccessManager: ObservableObject {
         }
     }
 
-    private var defaultPlan: KikiProPlan {
+    private var defaultPlan: KikiAccessPlan {
         Self.defaultPlan(in: configuration)
     }
 
-    private func plan(for planID: String) -> KikiProPlan? {
+    private func plan(for planID: String) -> KikiAccessPlan? {
         configuration.plans.first { $0.id == planID }
     }
 
@@ -295,6 +306,7 @@ public final class KikiProAccessManager: ObservableObject {
         for attempt in 1...Constants.transactionRefreshAttempts {
             do {
                 entitlementSnapshot = try await commerceClient.refreshEntitlement()
+                readiness = .ready
                 applyStatus(computeStatus())
 
                 if status.isPro {
@@ -312,7 +324,7 @@ public final class KikiProAccessManager: ObservableObject {
         return false
     }
 
-    private func computeStatus() -> KikiProAccessStatus {
+    private func computeStatus() -> KikiAccessState {
         Self.computeStatus(
             configuration: configuration,
             entitlementSnapshot: entitlementSnapshot,
@@ -322,7 +334,7 @@ public final class KikiProAccessManager: ObservableObject {
         )
     }
 
-    private func applyStatus(_ newStatus: KikiProAccessStatus) {
+    private func applyStatus(_ newStatus: KikiAccessState) {
         status = newStatus
         scheduleExpirationIfNeeded()
     }
@@ -346,12 +358,12 @@ public final class KikiProAccessManager: ObservableObject {
     }
 
     private static func computeStatus(
-        configuration: KikiProAccessConfiguration,
+        configuration: KikiAccessConfiguration,
         entitlementSnapshot: CommerceEntitlement?,
         defaults: UserDefaults,
         usageMeter: any KikiUsageMeter,
         now: () -> Date
-    ) -> KikiProAccessStatus {
+    ) -> KikiAccessState {
 #if DEBUG
         if let debugProAccessOverride = readDebugProAccessOverride(defaults: defaults, keys: configuration.storageKeys) {
             switch debugProAccessOverride {
@@ -416,7 +428,7 @@ public final class KikiProAccessManager: ObservableObject {
     }
 
     private static func startAutoTrialIfNeeded(
-        configuration: KikiProAccessConfiguration,
+        configuration: KikiAccessConfiguration,
         defaults: UserDefaults,
         now: () -> Date
     ) {
@@ -428,16 +440,16 @@ public final class KikiProAccessManager: ObservableObject {
         defaults.set(now(), forKey: configuration.storageKeys.trialStartedAt)
     }
 
-    private static func plan(for entitlement: CommerceEntitlement, in plans: [KikiProPlan]) -> KikiProPlan? {
+    private static func plan(for entitlement: CommerceEntitlement, in plans: [KikiAccessPlan]) -> KikiAccessPlan? {
         plans.first { plan in
             plan.commercePlan == entitlement.plan
         }
     }
 
-    private static func defaultPlan(in configuration: KikiProAccessConfiguration) -> KikiProPlan {
+    private static func defaultPlan(in configuration: KikiAccessConfiguration) -> KikiAccessPlan {
         configuration.plans.first(where: { $0.id == configuration.defaultPlanID })
             ?? configuration.plans.first
-            ?? KikiProPlan(
+            ?? KikiAccessPlan(
                 id: "lifetime",
                 commercePlan: .lifetime,
                 title: "Lifetime",
@@ -448,9 +460,9 @@ public final class KikiProAccessManager: ObservableObject {
     }
 
     private static func packageMetadata(
-        plans: [KikiProPlan],
+        plans: [KikiAccessPlan],
         from offering: CommerceOffering?
-    ) -> [String: KikiProPlanPackageMetadata]? {
+    ) -> [String: KikiAccessPlanPackageMetadata]? {
         guard let offering, !offering.isEmpty else {
             return nil
         }
@@ -462,7 +474,7 @@ public final class KikiProAccessManager: ObservableObject {
 
             return (
                 plan.id,
-                KikiProPlanPackageMetadata(
+                KikiAccessPlanPackageMetadata(
                     displayPrice: product.displayPrice,
                     billingDetail: plan.billingDetail,
                     isAvailable: product.isAvailable
@@ -472,10 +484,10 @@ public final class KikiProAccessManager: ObservableObject {
     }
 
     private static func resolveAvailablePlans(
-        plans: [KikiProPlan],
+        plans: [KikiAccessPlan],
         offering: CommerceOffering?,
         offeringsError: Error?
-    ) -> [KikiProPlanProduct] {
+    ) -> [KikiAccessPlanProduct] {
         let purchaseError = offeringsError.map(CommercePurchaseError.init(error:))
         let shouldKeepFallbackAvailable = purchaseError == .network
 
@@ -489,15 +501,15 @@ public final class KikiProAccessManager: ObservableObject {
 #if DEBUG
     private static func readDebugProAccessOverride(
         defaults: UserDefaults,
-        keys: KikiProAccessStorageKeys
-    ) -> KikiProAccessDebugMode? {
+        keys: KikiAccessStorageKeys
+    ) -> KikiAccessDebugMode? {
         guard let rawValue = defaults.string(forKey: keys.debugProAccessOverride) else {
             return nil
         }
-        return KikiProAccessDebugMode(rawValue: rawValue)
+        return KikiAccessDebugMode(rawValue: rawValue)
     }
 
-    private static func debugEntitlement(configuration: KikiProAccessConfiguration) -> CommerceEntitlement {
+    private static func debugEntitlement(configuration: KikiAccessConfiguration) -> CommerceEntitlement {
         let plan = defaultPlan(in: configuration)
         return CommerceEntitlement(
             plan: plan.commercePlan,
@@ -511,7 +523,7 @@ public final class KikiProAccessManager: ObservableObject {
 #endif
 }
 
-public struct KikiProPlanPackageMetadata: Equatable, Sendable {
+public struct KikiAccessPlanPackageMetadata: Equatable, Sendable {
     public let displayPrice: String
     public let billingDetail: String
     public let isAvailable: Bool

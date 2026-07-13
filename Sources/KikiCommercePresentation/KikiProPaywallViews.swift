@@ -3,30 +3,26 @@ import KikiCommerceCore
 import KikiPaywall
 import SwiftUI
 
-enum KikiProPaywallActionKind: Equatable {
+enum KikiAccessPaywallActionKind: Equatable {
     case purchase
     case startTrial
     case restore
     case dismiss
 }
 
-struct KikiProPaywallActionPolicy: Equatable {
-    let primary: KikiProPaywallActionKind
-    let secondary: [KikiProPaywallActionKind]
+struct KikiAccessPaywallActionPolicy: Equatable {
+    let primary: KikiAccessPaywallActionKind
+    let secondary: [KikiAccessPaywallActionKind]
 
     static func resolve(
-        status: KikiProAccessStatus,
-        context: KikiProPaywallPresentationContext
+        status: KikiAccessState,
+        context: KikiAccessPaywallContext
     ) -> Self {
         if status.isPro {
             return Self(primary: .dismiss, secondary: [])
         }
 
-        if context == .onboarding, status.canStartTrial {
-            return Self(primary: .startTrial, secondary: [.restore])
-        }
-
-        if context == .settings, status.canStartTrial {
+        if status.canStartTrial {
             return Self(primary: .purchase, secondary: [.startTrial, .restore])
         }
 
@@ -35,13 +31,13 @@ struct KikiProPaywallActionPolicy: Equatable {
 }
 
 @MainActor
-final class KikiProPaywallWorkflow: ObservableObject {
+final class KikiAccessPaywallWorkflow: ObservableObject {
     @Published private(set) var isLoadingOfferings = false
     @Published private(set) var isStartingTrial = false
 
-    private let manager: KikiProAccessManager
+    private let manager: KikiAccessManager
 
-    init(manager: KikiProAccessManager) {
+    init(manager: KikiAccessManager) {
         self.manager = manager
     }
 
@@ -100,12 +96,12 @@ final class KikiProPaywallWorkflow: ObservableObject {
     }
 }
 
-public struct KikiProPaywallSheet: View {
-    @ObservedObject private var manager: KikiProAccessManager
-    @StateObject private var workflow: KikiProPaywallWorkflow
-    private let context: KikiProPaywallPresentationContext
-    private let copy: KikiProPaywallCopy
-    private let footerLinks: [KikiProPaywallLink]
+public struct KikiAccessPaywallSheet: View {
+    @ObservedObject private var manager: KikiAccessManager
+    @StateObject private var workflow: KikiAccessPaywallWorkflow
+    private let context: KikiAccessPaywallContext
+    private let copy: KikiAccessPaywallCopy
+    private let footerLinks: [KikiAccessPaywallLink]
     private let tint: Color
     private let onFinish: () -> Void
 
@@ -113,10 +109,10 @@ public struct KikiProPaywallSheet: View {
     @State private var selectedPlanID: String
 
     public init(
-        manager: KikiProAccessManager,
-        context: KikiProPaywallPresentationContext,
-        copy: KikiProPaywallCopy = KikiProPaywallCopy(),
-        footerLinks: [KikiProPaywallLink] = [],
+        manager: KikiAccessManager,
+        context: KikiAccessPaywallContext,
+        copy: KikiAccessPaywallCopy = KikiAccessPaywallCopy(),
+        footerLinks: [KikiAccessPaywallLink] = [],
         tint: Color = .accentColor,
         onFinish: @escaping () -> Void = {}
     ) {
@@ -126,7 +122,7 @@ public struct KikiProPaywallSheet: View {
         self.footerLinks = footerLinks
         self.tint = tint
         self.onFinish = onFinish
-        _workflow = StateObject(wrappedValue: KikiProPaywallWorkflow(manager: manager))
+        _workflow = StateObject(wrappedValue: KikiAccessPaywallWorkflow(manager: manager))
         _selectedPlanID = State(initialValue: manager.configuration.defaultPlanID)
     }
 
@@ -221,12 +217,12 @@ public struct KikiProPaywallSheet: View {
         actionPolicy.secondary.map(actionPresentation(for:))
     }
 
-    private var actionPolicy: KikiProPaywallActionPolicy {
+    private var actionPolicy: KikiAccessPaywallActionPolicy {
         .resolve(status: manager.status, context: context)
     }
 
     private func actionPresentation(
-        for kind: KikiProPaywallActionKind
+        for kind: KikiAccessPaywallActionKind
     ) -> KikiPaywallActionPresentation {
         switch kind {
         case .purchase:

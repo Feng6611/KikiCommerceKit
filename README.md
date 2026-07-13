@@ -1,10 +1,40 @@
 # KikiCommerceKit
 
+Optional, product-neutral Commerce Feature Kit for Kiki macOS apps.
+
+## Products
+
+- `KikiCommerceCore`: `KikiAccessManager`, readiness, open plan catalog,
+  time/usage/disabled trials, purchase/restore protocols, and access state.
+- `KikiRevenueCat`: RevenueCat transport and legacy paid-App entitlement mapping.
+- `KikiCommercePresentation`: standard Settings/Onboarding paywall workflow that
+  renders Base Kit `KikiPaywallPresentation` presets.
+- `KikiCommerceTesting`: deterministic in-memory Commerce client for tests,
+  previews, and generated paid Starter projects.
+
+New code uses the product-neutral `KikiAccess*` names. The earlier `KikiPro*`
+surface remains as deprecated type aliases so existing App storage and source
+migrations can proceed independently.
+
+## Readiness
+
+`KikiAccessManager.status` may be computed from cached entitlement and local
+trial state immediately. `readiness` separately reports whether the first remote
+entitlement refresh is authoritative:
+
+- `idle` / `loading`: do not make automatic onboarding or paywall decisions;
+- `ready`: automatic presentation may use the current status;
+- `degraded`: cached active access may continue, but absence of an entitlement
+  is not proof that a user is unpaid.
+
+Apps still decide what product event counts as usage and record it only after
+that product action succeeds.
+
 Cross-product commerce + paywall toolkit for Kiki Mac apps. Three layered targets:
 
-- **KikiCommerceCore** — provider-neutral access workflow: `CommerceClient`, commerce models/configuration, trial state, `KikiProAccessManager`, and app-supplied plan metadata. No RevenueCat and no SwiftUI.
-- **KikiRevenueCat** — RevenueCat-backed `CommerceClient`, verified `AppTransaction` legacy grandfathering, RevenueCat error/snapshot mapping, and the convenience RevenueCat initializer for `KikiProAccessManager`.
-- **KikiCommercePresentation** — `KikiProPaywallSheet`, which owns reusable offering/action orchestration and adapts access state to the display-only `KikiPaywall` presets from `Kiki_mackit`.
+- **KikiCommerceCore** — provider-neutral access workflow: `CommerceClient`, commerce models/configuration, trial state, `KikiAccessManager`, and app-supplied plan metadata. No RevenueCat and no SwiftUI.
+- **KikiRevenueCat** — RevenueCat-backed `CommerceClient`, verified `AppTransaction` legacy grandfathering, RevenueCat error/snapshot mapping, and the convenience RevenueCat initializer for `KikiAccessManager`.
+- **KikiCommercePresentation** — `KikiAccessPaywallSheet`, which owns reusable offering/action orchestration and adapts access state to the display-only `KikiPaywall` presets from `Kiki_mackit`.
 
 ## Layering
 
@@ -28,10 +58,10 @@ Apps depending only on `KikiCommerceCore` can pass an in-process `CommerceClient
 - Trial policy is `.time(duration:startsOn:)`, `.usage(eventID:limit:)`, or
   `.disabled`. The app decides what counts as one usage event and calls
   `recordUsage(eventID:)`.
-- `KikiProAccessManager` emits semantic `KikiCommerceFeedback`; it does not own
+- `KikiAccessManager` emits semantic `KikiCommerceFeedback`; it does not own
   paywall strings. `KikiCommercePresentation` maps feedback through
-  caller-supplied `KikiProPaywallCopy`.
-- `KikiProPaywallSheet` owns reusable offerings and transaction orchestration.
+  caller-supplied `KikiAccessPaywallCopy`.
+- `KikiAccessPaywallSheet` owns reusable offerings and transaction orchestration.
   The app owns copy, footer links, product configuration, feature gates, and
   post-finish routing.
 
@@ -48,7 +78,7 @@ let commerceConfiguration = CommerceConfiguration(
         CommercePlan("supporterLifetime"): "com.example.MyApp.pro.supporter"
     ]
 )
-let accessConfiguration = KikiProAccessConfiguration(
+let accessConfiguration = KikiAccessConfiguration(
     plans: [...],
     defaultPlanID: "supporterLifetime",
     commerceConfiguration: commerceConfiguration,
@@ -59,7 +89,7 @@ let revenueCatConfiguration = RevenueCatConfiguration(
     apiKey: "appl_xxx",
     offeringIdentifier: "default"
 )
-let manager = KikiProAccessManager(
+let manager = KikiAccessManager(
     configuration: accessConfiguration,
     revenueCatConfiguration: revenueCatConfiguration
 )

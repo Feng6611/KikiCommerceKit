@@ -1,6 +1,6 @@
 import Foundation
 
-public struct KikiProPaywallCopy: Equatable, Sendable {
+public struct KikiAccessPaywallCopy: Equatable, Sendable {
     public let title: String
     public let proSubtitle: String
     public let trialSubtitle: String
@@ -55,7 +55,7 @@ public struct KikiProPaywallCopy: Equatable, Sendable {
     }
 }
 
-public struct KikiProPaywallLink: Equatable, Identifiable, Sendable {
+public struct KikiAccessPaywallLink: Equatable, Identifiable, Sendable {
     public let id: String
     public let title: String
     public let url: URL
@@ -67,7 +67,7 @@ public struct KikiProPaywallLink: Equatable, Identifiable, Sendable {
     }
 }
 
-public enum KikiProPaywallPresentationContext: Equatable, Sendable {
+public enum KikiAccessPaywallContext: Equatable, Sendable {
     case settings
     case onboarding
 }

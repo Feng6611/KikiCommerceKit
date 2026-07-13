@@ -1,6 +1,29 @@
 import Foundation
 
-public struct KikiProPlan: Equatable, Identifiable, Sendable {
+public enum KikiAccessReadiness: Equatable, Sendable {
+    case idle
+    case loading
+    case ready
+    case degraded(message: String)
+
+    public var hasResolvedInitialRefresh: Bool {
+        switch self {
+        case .ready, .degraded:
+            return true
+        case .idle, .loading:
+            return false
+        }
+    }
+
+    /// Automatic onboarding/paywall decisions should require authoritative
+    /// entitlement state. A degraded result may continue cached access but must
+    /// not treat a missing entitlement as proof that the user is unpaid.
+    public var allowsAutomaticPresentation: Bool {
+        self == .ready
+    }
+}
+
+public struct KikiAccessPlan: Equatable, Identifiable, Sendable {
     public let id: String
     public let commercePlan: CommercePlan
     public let title: String
@@ -28,8 +51,8 @@ public struct KikiProPlan: Equatable, Identifiable, Sendable {
     }
 }
 
-public struct KikiProPlanProduct: Equatable, Identifiable, Sendable {
-    public let plan: KikiProPlan
+public struct KikiAccessPlanProduct: Equatable, Identifiable, Sendable {
+    public let plan: KikiAccessPlan
     public let displayPrice: String
     public let billingDetail: String
     public let isAvailable: Bool
@@ -40,7 +63,7 @@ public struct KikiProPlanProduct: Equatable, Identifiable, Sendable {
     public var badge: String? { plan.badge }
 
     public init(
-        plan: KikiProPlan,
+        plan: KikiAccessPlan,
         displayPrice: String,
         billingDetail: String,
         isAvailable: Bool
@@ -51,7 +74,7 @@ public struct KikiProPlanProduct: Equatable, Identifiable, Sendable {
         self.isAvailable = isAvailable
     }
 
-    public static func fallback(for plan: KikiProPlan, isAvailable: Bool = true) -> Self {
+    public static func fallback(for plan: KikiAccessPlan, isAvailable: Bool = true) -> Self {
         Self(
             plan: plan,
             displayPrice: plan.fallbackDisplayPrice,
@@ -73,11 +96,11 @@ public enum KikiTrialProgress: Equatable, Sendable {
     }
 }
 
-public enum KikiProAccessStatus: Equatable {
+public enum KikiAccessState: Equatable {
     case notStarted
     case trial(KikiTrialProgress)
     case expired
-    case pro(plan: KikiProPlan, entitlement: CommerceEntitlement)
+    case pro(plan: KikiAccessPlan, entitlement: CommerceEntitlement)
 
     public var isActive: Bool {
         switch self {
@@ -102,11 +125,11 @@ public enum KikiProAccessStatus: Equatable {
         return false
     }
 
-    public var renewalState: KikiProRenewalState? {
+    public var renewalState: KikiAccessRenewalState? {
         renewalState(now: Date())
     }
 
-    public func renewalState(now: Date) -> KikiProRenewalState? {
+    public func renewalState(now: Date) -> KikiAccessRenewalState? {
         guard case .pro(let plan, let entitlement) = self,
               let expirationDate = entitlement.expirationDate else {
             return nil
@@ -123,12 +146,12 @@ public enum KikiProAccessStatus: Equatable {
     }
 }
 
-public enum KikiProRenewalState: Equatable {
-    case renews(on: Date, daysRemaining: Int, plan: KikiProPlan)
-    case ends(on: Date, daysRemaining: Int, plan: KikiProPlan)
+public enum KikiAccessRenewalState: Equatable {
+    case renews(on: Date, daysRemaining: Int, plan: KikiAccessPlan)
+    case ends(on: Date, daysRemaining: Int, plan: KikiAccessPlan)
 }
 
-public enum KikiProAccessDebugMode: String, CaseIterable, Sendable {
+public enum KikiAccessDebugMode: String, CaseIterable, Sendable {
     case live
     case notPro
     case trial
@@ -214,7 +237,7 @@ public final class KikiInMemoryUsageMeter: KikiUsageMeter {
     }
 }
 
-public struct KikiProAccessStorageKeys: Equatable, Sendable {
+public struct KikiAccessStorageKeys: Equatable, Sendable {
     public let trialStartedAt: String
     public let debugProAccessOverride: String
     public let usageCountPrefix: String
@@ -245,19 +268,19 @@ public enum KikiCommerceFeedback: Equatable, Sendable {
     case error(CommercePurchaseError)
 }
 
-public struct KikiProAccessConfiguration: Sendable {
-    public let plans: [KikiProPlan]
+public struct KikiAccessConfiguration: Sendable {
+    public let plans: [KikiAccessPlan]
     public let defaultPlanID: String
     public let commerceConfiguration: CommerceConfiguration
     public let trialPolicy: KikiTrialPolicy
-    public let storageKeys: KikiProAccessStorageKeys
+    public let storageKeys: KikiAccessStorageKeys
 
     public init(
-        plans: [KikiProPlan],
+        plans: [KikiAccessPlan],
         defaultPlanID: String,
         commerceConfiguration: CommerceConfiguration,
         trialPolicy: KikiTrialPolicy = .defaultExplicit,
-        storageKeys: KikiProAccessStorageKeys
+        storageKeys: KikiAccessStorageKeys
     ) {
         self.plans = plans
         self.defaultPlanID = defaultPlanID

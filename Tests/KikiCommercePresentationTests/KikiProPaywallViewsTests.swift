@@ -10,13 +10,13 @@ struct KikiProPaywallViewsTests {
     func sheetIsConstructibleInBothContexts() {
         let manager = makeManager()
 
-        _ = KikiProPaywallSheet(manager: manager, context: .settings)
-        _ = KikiProPaywallSheet(manager: manager, context: .onboarding)
+        _ = KikiAccessPaywallSheet(manager: manager, context: .settings)
+        _ = KikiAccessPaywallSheet(manager: manager, context: .onboarding)
     }
 
     @Test("Settings keeps purchase primary and exposes trial plus restore")
     func settingsActionPolicy() {
-        let policy = KikiProPaywallActionPolicy.resolve(
+        let policy = KikiAccessPaywallActionPolicy.resolve(
             status: .notStarted,
             context: .settings
         )
@@ -25,22 +25,22 @@ struct KikiProPaywallViewsTests {
         #expect(policy.secondary == [.startTrial, .restore])
     }
 
-    @Test("Onboarding keeps trial primary and restore secondary")
+    @Test("Onboarding offers purchase primary with trial and restore secondary")
     func onboardingActionPolicy() {
-        let policy = KikiProPaywallActionPolicy.resolve(
+        let policy = KikiAccessPaywallActionPolicy.resolve(
             status: .notStarted,
             context: .onboarding
         )
 
-        #expect(policy.primary == .startTrial)
-        #expect(policy.secondary == [.restore])
+        #expect(policy.primary == .purchase)
+        #expect(policy.secondary == [.startTrial, .restore])
     }
 
     @Test("Entitled state dismisses without transaction actions")
     func entitledActionPolicy() {
         let manager = makeManager()
         let plan = manager.configuration.plans[0]
-        let status = KikiProAccessStatus.pro(
+        let status = KikiAccessState.pro(
             plan: plan,
             entitlement: CommerceEntitlement(
                 plan: plan.commercePlan,
@@ -50,7 +50,7 @@ struct KikiProPaywallViewsTests {
             )
         )
 
-        let policy = KikiProPaywallActionPolicy.resolve(
+        let policy = KikiAccessPaywallActionPolicy.resolve(
             status: status,
             context: .settings
         )
@@ -74,7 +74,7 @@ struct KikiProPaywallViewsTests {
             ]
         )
         let manager = makeManager(client: client)
-        let workflow = KikiProPaywallWorkflow(manager: manager)
+        let workflow = KikiAccessPaywallWorkflow(manager: manager)
 
         await workflow.loadOfferings()
 
@@ -92,7 +92,7 @@ struct KikiProPaywallViewsTests {
             expirationDate: nil
         )
         let manager = makeManager(client: client)
-        let workflow = KikiProPaywallWorkflow(manager: manager)
+        let workflow = KikiAccessPaywallWorkflow(manager: manager)
 
         let didComplete = await workflow.purchase(planID: "supporterLifetime")
 
@@ -110,7 +110,7 @@ struct KikiProPaywallViewsTests {
             expirationDate: nil
         )
         let manager = makeManager(client: client)
-        let workflow = KikiProPaywallWorkflow(manager: manager)
+        let workflow = KikiAccessPaywallWorkflow(manager: manager)
 
         let didComplete = await workflow.restorePurchases()
 
@@ -121,7 +121,7 @@ struct KikiProPaywallViewsTests {
     @Test("Workflow reports completion after trial starts")
     func workflowReportsTrialCompletion() async {
         let manager = makeManager()
-        let workflow = KikiProPaywallWorkflow(manager: manager)
+        let workflow = KikiAccessPaywallWorkflow(manager: manager)
 
         let didComplete = await workflow.startTrial()
 
@@ -134,7 +134,7 @@ struct KikiProPaywallViewsTests {
         let client = NoopCommerceClient()
         client.purchaseError = CommercePurchaseError.network
         let manager = makeManager(client: client)
-        let workflow = KikiProPaywallWorkflow(manager: manager)
+        let workflow = KikiAccessPaywallWorkflow(manager: manager)
 
         let didComplete = await workflow.purchase(planID: "supporterLifetime")
 
@@ -144,21 +144,21 @@ struct KikiProPaywallViewsTests {
 
     @Test("Paywall error copy is supplied by the host")
     func paywallErrorCopyIsHostOwned() {
-        let copy = KikiProPaywallCopy(
+        let copy = KikiAccessPaywallCopy(
             purchaseErrorMessage: "Please check your connection and try again."
         )
 
         #expect(copy.purchaseErrorMessage == "Please check your connection and try again.")
     }
 
-    private func makeManager(client: NoopCommerceClient? = nil) -> KikiProAccessManager {
+    private func makeManager(client: NoopCommerceClient? = nil) -> KikiAccessManager {
         let suiteName = "KikiCommercePresentationTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
 
-        let configuration = KikiProAccessConfiguration(
+        let configuration = KikiAccessConfiguration(
             plans: [
-                KikiProPlan(
+                KikiAccessPlan(
                     id: "lifetime",
                     commercePlan: .yearly,
                     title: "Lifetime",
@@ -166,7 +166,7 @@ struct KikiProPaywallViewsTests {
                     billingDetail: "one-time purchase",
                     subtitle: "Unlock all features"
                 ),
-                KikiProPlan(
+                KikiAccessPlan(
                     id: "supporterLifetime",
                     commercePlan: .lifetime,
                     title: "Supporter Lifetime",
@@ -188,7 +188,7 @@ struct KikiProPaywallViewsTests {
             storageKeys: .prefixed("KikiCommercePresentationTests.Pro")
         )
 
-        return KikiProAccessManager(
+        return KikiAccessManager(
             configuration: configuration,
             defaults: defaults,
             commerceClient: client ?? NoopCommerceClient(),
