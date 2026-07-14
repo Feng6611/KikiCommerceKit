@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.1.1 - 2026-07-14
+
+### Fixed
+
+- Bumped the exact `Kiki_mackit` dependency to `0.8.1`, keeping CommerceKit
+  compatible with the transparent rounded-window fix used by onboarding
+  paywall sheets.
+
 ## 0.1.0 - 2026-07-14
 
 ### Added
