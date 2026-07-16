@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+
+- Paywall failures now use operation-specific purchase, restore, and free-trial
+  messages while keeping copy host-configurable.
+
 ## 0.1.1 - 2026-07-14
 
 ### Fixed

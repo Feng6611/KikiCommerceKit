@@ -10,6 +10,12 @@ enum KikiAccessPaywallActionKind: Equatable {
     case dismiss
 }
 
+enum KikiAccessPaywallOperation: Equatable {
+    case purchase
+    case restore
+    case startTrial
+}
+
 struct KikiAccessPaywallActionPolicy: Equatable {
     let primary: KikiAccessPaywallActionKind
     let secondary: [KikiAccessPaywallActionKind]
@@ -34,6 +40,7 @@ struct KikiAccessPaywallActionPolicy: Equatable {
 final class KikiAccessPaywallWorkflow: ObservableObject {
     @Published private(set) var isLoadingOfferings = false
     @Published private(set) var isStartingTrial = false
+    @Published private(set) var lastOperation: KikiAccessPaywallOperation?
 
     private let manager: KikiAccessManager
 
@@ -63,6 +70,7 @@ final class KikiAccessPaywallWorkflow: ObservableObject {
             return false
         }
 
+        lastOperation = .purchase
         do {
             try await manager.purchase(planID: planID)
             return manager.status.isPro
@@ -76,6 +84,7 @@ final class KikiAccessPaywallWorkflow: ObservableObject {
             return false
         }
 
+        lastOperation = .restore
         do {
             try await manager.restorePurchases()
             return manager.status.isPro
@@ -89,6 +98,7 @@ final class KikiAccessPaywallWorkflow: ObservableObject {
             return false
         }
 
+        lastOperation = .startTrial
         isStartingTrial = true
         defer { isStartingTrial = false }
         await manager.startTrial()
@@ -306,7 +316,7 @@ public struct KikiAccessPaywallSheet: View {
                 )
             case .error:
                 return KikiPaywallMessagePresentation(
-                    text: copy.purchaseErrorMessage,
+                    text: operationErrorMessage,
                     tone: .danger
                 )
             }
@@ -321,6 +331,17 @@ public struct KikiAccessPaywallSheet: View {
             )
         }
         return nil
+    }
+
+    private var operationErrorMessage: String {
+        switch workflow.lastOperation {
+        case .restore:
+            return copy.restoreErrorMessage
+        case .startTrial:
+            return copy.trialErrorMessage
+        case .purchase, .none:
+            return copy.purchaseErrorMessage
+        }
     }
 
     private func syncSelectedPlan() {

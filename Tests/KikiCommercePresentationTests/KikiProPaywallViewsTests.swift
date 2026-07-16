@@ -98,6 +98,7 @@ struct KikiProPaywallViewsTests {
 
         #expect(didComplete)
         #expect(manager.status.isPro)
+        #expect(workflow.lastOperation == .purchase)
     }
 
     @Test("Workflow reports completion after restore unlocks access")
@@ -116,6 +117,7 @@ struct KikiProPaywallViewsTests {
 
         #expect(didComplete)
         #expect(manager.status.isPro)
+        #expect(workflow.lastOperation == .restore)
     }
 
     @Test("Workflow reports completion after trial starts")
@@ -127,6 +129,7 @@ struct KikiProPaywallViewsTests {
 
         #expect(didComplete)
         #expect(manager.status.isActive)
+        #expect(workflow.lastOperation == .startTrial)
     }
 
     @Test("Workflow keeps purchase failures visible")
@@ -140,15 +143,20 @@ struct KikiProPaywallViewsTests {
 
         #expect(didComplete == false)
         #expect(manager.commerceFeedback == .error(.network))
+        #expect(workflow.lastOperation == .purchase)
     }
 
-    @Test("Paywall error copy is supplied by the host")
+    @Test("Paywall error copy distinguishes each operation")
     func paywallErrorCopyIsHostOwned() {
         let copy = KikiAccessPaywallCopy(
-            purchaseErrorMessage: "Please check your connection and try again."
+            purchaseErrorMessage: "Purchase failed.",
+            restoreErrorMessage: "Restore failed.",
+            trialErrorMessage: "Trial failed."
         )
 
-        #expect(copy.purchaseErrorMessage == "Please check your connection and try again.")
+        #expect(copy.purchaseErrorMessage == "Purchase failed.")
+        #expect(copy.restoreErrorMessage == "Restore failed.")
+        #expect(copy.trialErrorMessage == "Trial failed.")
     }
 
     private func makeManager(client: NoopCommerceClient? = nil) -> KikiAccessManager {

@@ -17,6 +17,8 @@ public struct KikiAccessPaywallCopy: Equatable, Sendable {
     public let restoreSuccessMessage: String
     public let noActivePurchaseMessage: String
     public let purchaseErrorMessage: String
+    public let restoreErrorMessage: String
+    public let trialErrorMessage: String
 
     public init(
         title: String = "Choose your plan",
@@ -34,7 +36,9 @@ public struct KikiAccessPaywallCopy: Equatable, Sendable {
         purchaseSuccessMessage: String = "Purchase successful. Pro unlocked.",
         restoreSuccessMessage: String = "Purchase restored.",
         noActivePurchaseMessage: String = "No active purchase found on this account.",
-        purchaseErrorMessage: String = "Something went wrong. Please try again."
+        purchaseErrorMessage: String = "The purchase couldn't be completed.",
+        restoreErrorMessage: String = "Purchases couldn't be restored.",
+        trialErrorMessage: String = "The free trial couldn't be started."
     ) {
         self.title = title
         self.proSubtitle = proSubtitle
@@ -52,6 +56,8 @@ public struct KikiAccessPaywallCopy: Equatable, Sendable {
         self.restoreSuccessMessage = restoreSuccessMessage
         self.noActivePurchaseMessage = noActivePurchaseMessage
         self.purchaseErrorMessage = purchaseErrorMessage
+        self.restoreErrorMessage = restoreErrorMessage
+        self.trialErrorMessage = trialErrorMessage
     }
 }
 
