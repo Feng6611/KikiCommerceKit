@@ -2,8 +2,12 @@
 
 ## Unreleased
 
+## 0.1.2 - 2026-07-19
+
 ### Fixed
 
+- Paywall purchase/trial/restore/dismiss roles now carry stable identities
+  through rebuilt presentation snapshots, preserving SwiftUI focus and diffing.
 - Paywall failures now use operation-specific purchase, restore, and free-trial
   messages while keeping copy host-configurable.
 

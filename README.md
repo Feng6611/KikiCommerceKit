@@ -65,6 +65,25 @@ Apps depending only on `KikiCommerceCore` can pass an in-process `CommerceClient
   The app owns copy, footer links, product configuration, feature gates, and
   post-finish routing.
 
+## Apple Sandbox and production
+
+`KikiRevenueCat` does not select Apple Sandbox or Production from `#if DEBUG`.
+For Apple-backed apps, both Debug and Release use the Apple app's public
+RevenueCat SDK key (`appl_`). StoreKit and Apple receipts determine the
+transaction environment:
+
+- a valid Apple Development-signed Debug app talks to Apple Sandbox;
+- TestFlight/App Store distribution follows Apple's receipt environment;
+- an unsigned or ad-hoc app is not an Apple Sandbox proof;
+- a local optimized Release build is not an App Store distribution artifact.
+
+RevenueCat Test Store remains supported by the provider layer for products that
+explicitly choose it, but it is an app-owned testing policy and is not the
+default for Kiki workspace paid apps. Build-time key injection, rejecting
+`test_` for Apple-only apps, code-sign verification, Bundle ID checks, and
+archive/export checks belong to the Product App/Starter tooling rather than the
+runtime Commerce Kit.
+
 ## Quick start
 
 ```swift

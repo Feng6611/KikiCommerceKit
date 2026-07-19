@@ -25,15 +25,28 @@ struct KikiProPaywallViewsTests {
         #expect(policy.secondary == [.startTrial, .restore])
     }
 
-    @Test("Onboarding offers purchase primary with trial and restore secondary")
+    @Test("Onboarding makes explicit trial start primary")
     func onboardingActionPolicy() {
         let policy = KikiAccessPaywallActionPolicy.resolve(
             status: .notStarted,
             context: .onboarding
         )
 
-        #expect(policy.primary == .purchase)
-        #expect(policy.secondary == [.startTrial, .restore])
+        #expect(policy.primary == .startTrial)
+        #expect(policy.secondary == [.purchase, .restore])
+    }
+
+    @Test("Paywall action roles expose stable distinct identities")
+    func actionRolesExposeStableIdentity() {
+        let ids = [
+            KikiAccessPaywallActionKind.purchase.stableID,
+            KikiAccessPaywallActionKind.startTrial.stableID,
+            KikiAccessPaywallActionKind.restore.stableID,
+            KikiAccessPaywallActionKind.dismiss.stableID,
+        ]
+
+        #expect(Set(ids).count == ids.count)
+        #expect(KikiAccessPaywallActionKind.purchase.stableID == ids[0])
     }
 
     @Test("Entitled state dismisses without transaction actions")

@@ -8,6 +8,19 @@ enum KikiAccessPaywallActionKind: Equatable {
     case startTrial
     case restore
     case dismiss
+
+    var stableID: UUID {
+        switch self {
+        case .purchase:
+            return UUID(uuidString: "7B35A7EC-B827-4D8B-A0D2-3AB5C5B8F001")!
+        case .startTrial:
+            return UUID(uuidString: "7B35A7EC-B827-4D8B-A0D2-3AB5C5B8F002")!
+        case .restore:
+            return UUID(uuidString: "7B35A7EC-B827-4D8B-A0D2-3AB5C5B8F003")!
+        case .dismiss:
+            return UUID(uuidString: "7B35A7EC-B827-4D8B-A0D2-3AB5C5B8F004")!
+        }
+    }
 }
 
 enum KikiAccessPaywallOperation: Equatable {
@@ -29,7 +42,12 @@ struct KikiAccessPaywallActionPolicy: Equatable {
         }
 
         if status.canStartTrial {
-            return Self(primary: .purchase, secondary: [.startTrial, .restore])
+            switch context {
+            case .onboarding:
+                return Self(primary: .startTrial, secondary: [.purchase, .restore])
+            case .settings:
+                return Self(primary: .purchase, secondary: [.startTrial, .restore])
+            }
         }
 
         return Self(primary: .purchase, secondary: [.restore])
@@ -243,6 +261,7 @@ public struct KikiAccessPaywallSheet: View {
             return restoreAction
         case .dismiss:
             return KikiPaywallActionPresentation(
+                id: kind.stableID,
                 title: copy.doneActionTitle,
                 action: finish
             )
@@ -251,6 +270,7 @@ public struct KikiAccessPaywallSheet: View {
 
     private var purchaseAction: KikiPaywallActionPresentation {
         KikiPaywallActionPresentation(
+            id: KikiAccessPaywallActionKind.purchase.stableID,
             title: copy.purchaseActionTitle,
             isLoading: manager.purchaseInProgressPlanID != nil,
             isEnabled: { planID in
@@ -266,6 +286,7 @@ public struct KikiAccessPaywallSheet: View {
 
     private var trialAction: KikiPaywallActionPresentation {
         KikiPaywallActionPresentation(
+            id: KikiAccessPaywallActionKind.startTrial.stableID,
             title: copy.trialActionTitle,
             isLoading: workflow.isStartingTrial,
             action: {
@@ -278,6 +299,7 @@ public struct KikiAccessPaywallSheet: View {
 
     private var restoreAction: KikiPaywallActionPresentation {
         KikiPaywallActionPresentation(
+            id: KikiAccessPaywallActionKind.restore.stableID,
             title: copy.restoreActionTitle,
             isLoading: manager.isRestoringPurchases,
             action: {
