@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## 0.2.0 - 2026-07-20
+
+Requires `Kiki_mackit` 0.9.0 for the new `KikiPaywallActionStyle`
+API. The bump is minor rather than a patch because downstream apps
+that rebuild against this release will see restore render as a
+footer link rather than a bordered button — a visible UI change
+though no API break.
+
+### Changed
+
+- Bumped `Kiki_mackit` exact dependency to `0.9.0`.
+- `restoreAction` in `KikiAccessPaywallSheet` now sets
+  `style: .footerLink`. Restore is a return path (not a conversion
+  CTA), and Kiki 0.9.0 splits `.footerLink`-styled actions out of
+  the primary button stack into a dot-separated link row inside the
+  footer. Downstream apps get the cleaner CTA hierarchy without any
+  code change on their side.
+
 ## 0.1.2 - 2026-07-19
 
 ### Fixed
