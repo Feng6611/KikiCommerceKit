@@ -302,6 +302,7 @@ public struct KikiAccessPaywallSheet: View {
             id: KikiAccessPaywallActionKind.restore.stableID,
             title: copy.restoreActionTitle,
             isLoading: manager.isRestoringPurchases,
+            style: .footerLink,
             action: {
                 run {
                     await workflow.restorePurchases()
