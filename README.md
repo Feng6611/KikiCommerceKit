@@ -119,6 +119,12 @@ During coordinated local development this package and the reference app may
 point to the same adjacent `../Kiki_mackit` checkout so SwiftPM sees one package
 identity. A release must use the tagged HTTPS Kiki_mackit dependency.
 
+## Docs
+
+- [`Docs/Localization.md`](Docs/Localization.md) — how paywall and purchase
+  strings flow between this package and the host app; required reading
+  before adding, editing, or defaulting any user-facing string.
+
 ## Tests
 
 ```sh

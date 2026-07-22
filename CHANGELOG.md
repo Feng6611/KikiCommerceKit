@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Changed
+
+- **Localization opt-in.** Every `String` default in the
+  `KikiAccessPaywallCopy` initializer now resolves through the host app's
+  main bundle via `String(localized:, bundle: .main, ...)` — 15 default
+  values across `title`, subtitles, action titles, `loadingOptionsMessage`,
+  `unavailableOptionsMessage`, purchase/restore/trial success and error
+  messages. Callers that already override every field see no change;
+  callers that relied on defaults now pick up translations from their own
+  `Localizable.xcstrings`. Also fixed the source-side `Loading purchase
+  options...` → `Loading purchase options…`. See `Docs/Localization.md`.
+
 ## 0.2.0 - 2026-07-20
 
 Requires `Kiki_mackit` 0.9.0 for the new `KikiPaywallActionStyle`

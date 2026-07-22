@@ -21,24 +21,24 @@ public struct KikiAccessPaywallCopy: Equatable, Sendable {
     public let trialErrorMessage: String
 
     public init(
-        title: String = "Choose your plan",
-        proSubtitle: String = "All features are unlocked.",
-        trialSubtitle: String = "Choose a plan or continue with your trial.",
-        expiredSubtitle: String = "Your trial has ended. Upgrade to keep using Pro.",
-        notStartedSubtitle: String = "Choose a plan or start your free trial.",
+        title: String = String(localized: "Choose your plan", bundle: .main, comment: "Paywall header when the user has not chosen a plan yet."),
+        proSubtitle: String = String(localized: "All features are unlocked.", bundle: .main, comment: "Paywall subtitle when the user already owns Pro."),
+        trialSubtitle: String = String(localized: "Choose a plan or continue with your trial.", bundle: .main, comment: "Paywall subtitle during an active trial."),
+        expiredSubtitle: String = String(localized: "Your trial has ended. Upgrade to keep using Pro.", bundle: .main, comment: "Paywall subtitle when the trial has expired."),
+        notStartedSubtitle: String = String(localized: "Choose a plan or start your free trial.", bundle: .main, comment: "Paywall subtitle before the user starts the trial."),
         features: [String] = [],
-        purchaseActionTitle: String = "Unlock forever",
-        trialActionTitle: String = "Start free trial",
-        restoreActionTitle: String = "Restore purchases",
-        doneActionTitle: String = "Done",
-        loadingOptionsMessage: String = "Loading purchase options...",
-        unavailableOptionsMessage: String = "Purchase options are unavailable right now. Try again later or restore an existing purchase.",
-        purchaseSuccessMessage: String = "Purchase successful. Pro unlocked.",
-        restoreSuccessMessage: String = "Purchase restored.",
-        noActivePurchaseMessage: String = "No active purchase found on this account.",
-        purchaseErrorMessage: String = "The purchase couldn't be completed.",
-        restoreErrorMessage: String = "Purchases couldn't be restored.",
-        trialErrorMessage: String = "The free trial couldn't be started."
+        purchaseActionTitle: String = String(localized: "Unlock forever", bundle: .main, comment: "One-time-purchase CTA on the paywall."),
+        trialActionTitle: String = String(localized: "Start free trial", bundle: .main, comment: "Trial-start CTA on the paywall."),
+        restoreActionTitle: String = String(localized: "Restore purchases", bundle: .main, comment: "Restore-existing-purchase link on the paywall."),
+        doneActionTitle: String = String(localized: "Done", bundle: .main, comment: "Dismiss-paywall CTA."),
+        loadingOptionsMessage: String = String(localized: "Loading purchase options…", bundle: .main, comment: "Progress message while StoreKit resolves products."),
+        unavailableOptionsMessage: String = String(localized: "Purchase options are unavailable right now. Try again later or restore an existing purchase.", bundle: .main, comment: "Fallback message when products can't be loaded."),
+        purchaseSuccessMessage: String = String(localized: "Purchase successful. Pro unlocked.", bundle: .main, comment: "Success feedback after a completed purchase."),
+        restoreSuccessMessage: String = String(localized: "Purchase restored.", bundle: .main, comment: "Success feedback after a completed restore."),
+        noActivePurchaseMessage: String = String(localized: "No active purchase found on this account.", bundle: .main, comment: "Feedback when a restore finishes with nothing to restore."),
+        purchaseErrorMessage: String = String(localized: "The purchase couldn't be completed.", bundle: .main, comment: "Generic purchase-failure message; raw provider error is logged separately."),
+        restoreErrorMessage: String = String(localized: "Purchases couldn't be restored.", bundle: .main, comment: "Generic restore-failure message."),
+        trialErrorMessage: String = String(localized: "The free trial couldn't be started.", bundle: .main, comment: "Generic trial-start-failure message.")
     ) {
         self.title = title
         self.proSubtitle = proSubtitle
