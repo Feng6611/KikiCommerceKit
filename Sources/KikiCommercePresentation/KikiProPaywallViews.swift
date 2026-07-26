@@ -147,6 +147,7 @@ public struct KikiAccessPaywallSheet: View {
     private let copy: KikiAccessPaywallCopy
     private let stats: [KikiAccessPaywallStat]
     private let footerLinks: [KikiAccessPaywallLink]
+    private let planPresentation: (KikiAccessPlanProduct) -> KikiPaywallPlanPresentation
     private let tint: Color
     private let onFinish: () -> Void
 
@@ -160,6 +161,16 @@ public struct KikiAccessPaywallSheet: View {
         stats: [KikiAccessPaywallStat] = [],
         footerLinks: [KikiAccessPaywallLink] = [],
         tint: Color = .accentColor,
+        planPresentation: @escaping (KikiAccessPlanProduct) -> KikiPaywallPlanPresentation = { product in
+            KikiPaywallPlanPresentation(
+                id: product.id,
+                title: product.title,
+                displayPrice: product.displayPrice,
+                billingDetail: product.billingDetail,
+                badge: product.badge,
+                isAvailable: product.isAvailable
+            )
+        },
         onFinish: @escaping () -> Void = {}
     ) {
         self.manager = manager
@@ -168,6 +179,7 @@ public struct KikiAccessPaywallSheet: View {
         self.stats = stats
         self.footerLinks = footerLinks
         self.tint = tint
+        self.planPresentation = planPresentation
         self.onFinish = onFinish
         _workflow = StateObject(wrappedValue: KikiAccessPaywallWorkflow(manager: manager))
         _selectedPlanID = State(initialValue: manager.configuration.defaultPlanID)
@@ -251,16 +263,7 @@ public struct KikiAccessPaywallSheet: View {
             return []
         }
 
-        return manager.availablePlans.map { product in
-            KikiPaywallPlanPresentation(
-                id: product.id,
-                title: product.title,
-                displayPrice: product.displayPrice,
-                billingDetail: product.billingDetail,
-                badge: product.badge,
-                isAvailable: product.isAvailable
-            )
-        }
+        return manager.availablePlans.map(planPresentation)
     }
 
     private var primaryAction: KikiPaywallActionPresentation {
