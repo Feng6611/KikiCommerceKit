@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### Added
+
+- **`stats:` on `KikiAccessPaywallSheet`.** `KikiPaywallPresentation` has
+  carried a `stats` slot since Kiki 0.9.0, but the commerce sheet never
+  filled it. Callers can now pass `[KikiAccessPaywallStat]` (value over
+  caption, one line each) — intended for facts about the user's own account.
+  Defaults to empty, so existing callers are unaffected. Pairs with the fix
+  below: it is what an entitled user gets instead of plan cards.
+
+### Fixed
+
+- **Entitled users are no longer shown plan cards.** `KikiAccessPaywallSheet`
+  passed `manager.availablePlans` to the sheet in every access state, so a
+  customer who already owned Pro saw priced Yearly/Lifetime cards — one of
+  them badged "Best Value" — directly under "Your Pro access is active."
+  The action policy already collapsed to a single dismiss button in that
+  state; the plan row was the missed half. `KikiAccessPaywallPlanPolicy`
+  now gates it, and the sheet renders as a status view for entitled users.
+  This also hides plans from subscribers who could move to a higher tier:
+  the kit has no ordering over `CommercePlan` and cannot tell an upgrade
+  from a second charge, so cross-tier upgrades need their own surface.
+
 ### Changed
 
 - **Localization opt-in.** Every `String` default in the

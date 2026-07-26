@@ -54,6 +54,22 @@ struct KikiAccessPaywallActionPolicy: Equatable {
     }
 }
 
+/// Whether the paywall offers plans at all.
+///
+/// An entitled user has already paid. Showing priced plan cards underneath
+/// "your access is active" reads as being asked to buy the thing they own,
+/// so the sheet drops to a status view: what they have, and a way out.
+///
+/// This deliberately also hides plans from a subscriber who could in principle
+/// move to a higher tier — the kit has no ordering over `CommercePlan`, so it
+/// cannot tell an upgrade from a second charge. Cross-tier upgrades need their
+/// own framing, not the acquisition paywall.
+enum KikiAccessPaywallPlanPolicy {
+    static func showsPlans(for status: KikiAccessState) -> Bool {
+        !status.isPro
+    }
+}
+
 @MainActor
 final class KikiAccessPaywallWorkflow: ObservableObject {
     @Published private(set) var isLoadingOfferings = false
@@ -129,6 +145,7 @@ public struct KikiAccessPaywallSheet: View {
     @StateObject private var workflow: KikiAccessPaywallWorkflow
     private let context: KikiAccessPaywallContext
     private let copy: KikiAccessPaywallCopy
+    private let stats: [KikiAccessPaywallStat]
     private let footerLinks: [KikiAccessPaywallLink]
     private let tint: Color
     private let onFinish: () -> Void
@@ -140,6 +157,7 @@ public struct KikiAccessPaywallSheet: View {
         manager: KikiAccessManager,
         context: KikiAccessPaywallContext,
         copy: KikiAccessPaywallCopy = KikiAccessPaywallCopy(),
+        stats: [KikiAccessPaywallStat] = [],
         footerLinks: [KikiAccessPaywallLink] = [],
         tint: Color = .accentColor,
         onFinish: @escaping () -> Void = {}
@@ -147,6 +165,7 @@ public struct KikiAccessPaywallSheet: View {
         self.manager = manager
         self.context = context
         self.copy = copy
+        self.stats = stats
         self.footerLinks = footerLinks
         self.tint = tint
         self.onFinish = onFinish
@@ -186,6 +205,9 @@ public struct KikiAccessPaywallSheet: View {
             headerSubtitle: subtitle,
             plans: plans,
             features: copy.features,
+            stats: stats.map {
+                KikiPaywallStatConfig(id: $0.id, value: $0.value, label: $0.label)
+            },
             footnote: nil,
             footerLinks: footerLinks.map {
                 KikiPaywallLinkPresentation(id: $0.id, title: $0.title, url: $0.url)
@@ -225,7 +247,11 @@ public struct KikiAccessPaywallSheet: View {
     }
 
     private var plans: [KikiPaywallPlanPresentation] {
-        manager.availablePlans.map { product in
+        guard KikiAccessPaywallPlanPolicy.showsPlans(for: manager.status) else {
+            return []
+        }
+
+        return manager.availablePlans.map { product in
             KikiPaywallPlanPresentation(
                 id: product.id,
                 title: product.title,

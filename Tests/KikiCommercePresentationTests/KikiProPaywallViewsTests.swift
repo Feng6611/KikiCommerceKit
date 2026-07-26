@@ -70,6 +70,35 @@ struct KikiProPaywallViewsTests {
 
         #expect(policy.primary == .dismiss)
         #expect(policy.secondary.isEmpty)
+        #expect(KikiAccessPaywallPlanPolicy.showsPlans(for: status) == false)
+    }
+
+    @Test("Plans are offered in every state the user has not paid for")
+    func planPolicyOffersPlansBeforePurchase() {
+        let manager = makeManager()
+        let plan = manager.configuration.plans[0]
+        let expiresAt = Date().addingTimeInterval(86_400)
+
+        #expect(KikiAccessPaywallPlanPolicy.showsPlans(for: .notStarted))
+        #expect(KikiAccessPaywallPlanPolicy.showsPlans(for: .expired))
+        #expect(
+            KikiAccessPaywallPlanPolicy.showsPlans(
+                for: .trial(.time(daysRemaining: 1, expiresAt: expiresAt))
+            )
+        )
+        #expect(
+            KikiAccessPaywallPlanPolicy.showsPlans(
+                for: .pro(
+                    plan: plan,
+                    entitlement: CommerceEntitlement(
+                        plan: plan.commercePlan,
+                        productIdentifier: "dev.kkuk.test.pro.yearly",
+                        entitlementIdentifier: "pro",
+                        expirationDate: Date().addingTimeInterval(86_400 * 365)
+                    )
+                )
+            ) == false
+        )
     }
 
     @Test("Workflow loads offerings before presentation")

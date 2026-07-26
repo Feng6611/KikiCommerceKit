@@ -61,6 +61,23 @@ public struct KikiAccessPaywallCopy: Equatable, Sendable {
     }
 }
 
+/// A short figure shown on the paywall, rendered as a value over a caption.
+///
+/// Both lines are clipped to one line, so keep the value to a number or a
+/// single word. Intended for facts about the user's own account — what they
+/// own, what the app has done for them — not for marketing claims.
+public struct KikiAccessPaywallStat: Equatable, Identifiable, Sendable {
+    public let id: String
+    public let value: String
+    public let label: String
+
+    public init(id: String? = nil, value: String, label: String) {
+        self.id = id ?? "\(value)\u{1F}\(label)"
+        self.value = value
+        self.label = label
+    }
+}
+
 public struct KikiAccessPaywallLink: Equatable, Identifiable, Sendable {
     public let id: String
     public let title: String
