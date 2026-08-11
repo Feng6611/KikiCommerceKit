@@ -102,17 +102,24 @@ public struct KikiAccessPaywallSheet: View {
     private let context: KikiAccessPaywallContext
     private let copy: KikiAccessPaywallCopy
     private let footerLinks: [KikiAccessPaywallLink]
+    private let displayPlanIDs: [String]?
     private let tint: Color
     private let onFinish: () -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPlanID: String
 
+    /// - Parameter displayPlanIDs: plans this sheet shows, in order. `nil`
+    ///   shows every configured plan. Pass a subset when the configuration
+    ///   carries plans that are sold elsewhere — a win-back discount SKU must
+    ///   be purchasable through the manager without appearing as a third card
+    ///   on the regular paywall, where it would undercut the listed price.
     public init(
         manager: KikiAccessManager,
         context: KikiAccessPaywallContext,
         copy: KikiAccessPaywallCopy = KikiAccessPaywallCopy(),
         footerLinks: [KikiAccessPaywallLink] = [],
+        displayPlanIDs: [String]? = nil,
         tint: Color = .accentColor,
         onFinish: @escaping () -> Void = {}
     ) {
@@ -120,6 +127,7 @@ public struct KikiAccessPaywallSheet: View {
         self.context = context
         self.copy = copy
         self.footerLinks = footerLinks
+        self.displayPlanIDs = displayPlanIDs
         self.tint = tint
         self.onFinish = onFinish
         _workflow = StateObject(wrappedValue: KikiAccessPaywallWorkflow(manager: manager))
@@ -196,8 +204,24 @@ public struct KikiAccessPaywallSheet: View {
         }
     }
 
+    private var displayedPlans: [KikiAccessPlanProduct] {
+        Self.displayedPlans(from: manager.availablePlans, displayPlanIDs: displayPlanIDs)
+    }
+
+    static func displayedPlans(
+        from availablePlans: [KikiAccessPlanProduct],
+        displayPlanIDs: [String]?
+    ) -> [KikiAccessPlanProduct] {
+        guard let displayPlanIDs else {
+            return availablePlans
+        }
+        return displayPlanIDs.compactMap { id in
+            availablePlans.first { $0.id == id }
+        }
+    }
+
     private var plans: [KikiPaywallPlanPresentation] {
-        manager.availablePlans.map { product in
+        displayedPlans.map { product in
             KikiPaywallPlanPresentation(
                 id: product.id,
                 title: product.title,
@@ -314,7 +338,7 @@ public struct KikiAccessPaywallSheet: View {
         if workflow.isLoadingOfferings {
             return KikiPaywallMessagePresentation(text: copy.loadingOptionsMessage)
         }
-        if manager.availablePlans.allSatisfy({ !$0.isAvailable }),
+        if displayedPlans.allSatisfy({ !$0.isAvailable }),
            manager.status.canStartTrial == false {
             return KikiPaywallMessagePresentation(
                 text: copy.unavailableOptionsMessage
@@ -324,11 +348,12 @@ public struct KikiAccessPaywallSheet: View {
     }
 
     private func syncSelectedPlan() {
-        if manager.planProduct(for: selectedPlanID).isAvailable {
+        let displayed = displayedPlans
+        if displayed.contains(where: { $0.id == selectedPlanID && $0.isAvailable }) {
             return
         }
 
-        if let firstAvailablePlan = manager.availablePlans.first(where: \.isAvailable) {
+        if let firstAvailablePlan = displayed.first(where: \.isAvailable) {
             selectedPlanID = firstAvailablePlan.id
         }
     }

@@ -399,16 +399,11 @@ public final class KikiAccessManager: ObservableObject {
                 return .expired
             }
             return .trial(.usage(eventID: eventID, used: used, limit: safeLimit))
-        case .time(let duration, let startsOn):
+        case .time(let duration, _):
             guard let trialStartedAt = defaults.object(
                 forKey: configuration.storageKeys.trialStartedAt
             ) as? Date else {
-                switch startsOn {
-                case .explicit:
-                    return .notStarted
-                case .automatic:
-                    return .notStarted
-                }
+                return .notStarted
             }
 
             let expiresAt = trialStartedAt.addingTimeInterval(duration)

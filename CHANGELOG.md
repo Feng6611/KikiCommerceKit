@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added
+
+- **`displayPlanIDs` on `KikiAccessPaywallSheet`** filters which configured
+  plans the sheet lists, in the host's order. Needed once a configuration
+  carries a plan sold elsewhere — a win-back discount SKU must be purchasable
+  through the manager without appearing beside the full-price card on the
+  regular paywall. `nil` (the default) lists every plan, as before.
+
 ## 0.1.0 - 2026-07-14
 
 ### Added

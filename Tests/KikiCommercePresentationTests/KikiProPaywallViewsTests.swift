@@ -14,6 +14,37 @@ struct KikiProPaywallViewsTests {
         _ = KikiAccessPaywallSheet(manager: manager, context: .onboarding)
     }
 
+    @Test("Display plan filter keeps the host's subset, in the host's order")
+    func displayPlanFilter() {
+        let manager = makeManager()
+        let available = manager.availablePlans
+        #expect(available.count == 2)
+
+        // A win-back SKU lives in the configuration so purchase(planID:) can
+        // sell it, but the regular paywall must not list it beside the full
+        // price. The filter is how a host keeps such a plan out of the sheet.
+        let subset = KikiAccessPaywallSheet.displayedPlans(
+            from: available,
+            displayPlanIDs: ["supporterLifetime"]
+        )
+        #expect(subset.map(\.id) == ["supporterLifetime"])
+
+        let reordered = KikiAccessPaywallSheet.displayedPlans(
+            from: available,
+            displayPlanIDs: ["supporterLifetime", "lifetime"]
+        )
+        #expect(reordered.map(\.id) == ["supporterLifetime", "lifetime"])
+
+        let unknown = KikiAccessPaywallSheet.displayedPlans(
+            from: available,
+            displayPlanIDs: ["missing"]
+        )
+        #expect(unknown.isEmpty)
+
+        let all = KikiAccessPaywallSheet.displayedPlans(from: available, displayPlanIDs: nil)
+        #expect(all.map(\.id) == available.map(\.id))
+    }
+
     @Test("Settings keeps purchase primary and exposes trial plus restore")
     func settingsActionPolicy() {
         let policy = KikiAccessPaywallActionPolicy.resolve(
