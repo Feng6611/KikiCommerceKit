@@ -155,6 +155,10 @@ public enum KikiAccessDebugMode: String, CaseIterable, Sendable {
     case live
     case notPro
     case trial
+    /// A trial that ran out. Distinct from `notPro`, which is a trial that
+    /// never began: the two differ in what the app may offer next — a win-back
+    /// or retention path has a decision to answer only after a trial expired.
+    case expired
     case pro
 
     public var displayName: String {
@@ -162,6 +166,7 @@ public enum KikiAccessDebugMode: String, CaseIterable, Sendable {
         case .live: return "Live"
         case .notPro: return "Not Pro"
         case .trial: return "Trial"
+        case .expired: return "Expired"
         case .pro: return "Pro"
         }
     }

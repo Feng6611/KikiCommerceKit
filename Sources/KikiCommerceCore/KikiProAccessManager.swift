@@ -374,6 +374,8 @@ public final class KikiAccessManager: ObservableObject {
             case .trial:
                 let expiresAt = now().addingTimeInterval(2 * 86_400)
                 return .trial(.time(daysRemaining: 2, expiresAt: expiresAt))
+            case .expired:
+                return .expired
             case .pro:
                 return .pro(
                     plan: defaultPlan(in: configuration),

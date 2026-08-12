@@ -4,6 +4,11 @@
 
 ### Added
 
+- **`KikiAccessDebugMode.expired`.** The debug panel could set a trial that
+  never started (`notPro`) but not one that ran out, so any retention path
+  gated on an expired trial was unreachable in development — the panel could
+  not express a state the app acts on.
+
 - **`displayPlanIDs` on `KikiAccessPaywallSheet`** filters which configured
   plans the sheet lists, in the host's order. Needed once a configuration
   carries a plan sold elsewhere — a win-back discount SKU must be purchasable
