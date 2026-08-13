@@ -14,6 +14,15 @@ protocol LegacyPaidAppEntitlementProviding: AnyObject {
 final class LegacyPaidAppEntitlementSource: LegacyPaidAppEntitlementProviding {
     private(set) var cachedLegacyEntitlement: CommerceEntitlement?
 
+    /// Ceiling on the StoreKit lookup below. Callers pass the same value the
+    /// RevenueCat requests use, so one refresh cannot take longer than the
+    /// budget the app already agreed to.
+    private let timeoutNanoseconds: UInt64
+
+    init(timeoutNanoseconds: UInt64 = 4_000_000_000) {
+        self.timeoutNanoseconds = timeoutNanoseconds
+    }
+
     func refreshLegacyEntitlement(configuration: CommerceConfiguration, logger: Logger) async -> CommerceEntitlement? {
         guard configuration.legacyPaidApp.isEnabled else {
             cachedLegacyEntitlement = nil
@@ -23,7 +32,7 @@ final class LegacyPaidAppEntitlementSource: LegacyPaidAppEntitlementProviding {
         if #available(macOS 13.0, iOS 16.0, *) {
             do {
                 if let entitlement = Self.entitlementIfGrandfathered(
-                    from: try await AppTransaction.shared,
+                    from: try await appTransaction(logger: logger),
                     configuration: configuration
                 ) {
                     cachedLegacyEntitlement = entitlement
@@ -36,6 +45,38 @@ final class LegacyPaidAppEntitlementSource: LegacyPaidAppEntitlementProviding {
         }
 
         return cachedLegacyEntitlement
+    }
+
+    /// `AppTransaction.shared` reaches the App Store, and on a copy with no
+    /// receipt — a development build, a Mac signed into a sandbox account, a
+    /// machine that is offline — it can take seconds or never return at all.
+    /// It runs first in the entitlement refresh, so an unbounded wait here
+    /// holds the whole refresh, and the app sits on "checking purchases" for
+    /// as long as StoreKit feels like taking. The RevenueCat call after it was
+    /// already bounded; this is the one that was not.
+    @available(macOS 13.0, iOS 16.0, *)
+    private func appTransaction(logger: Logger) async throws -> StoreKit.VerificationResult<StoreKit.AppTransaction> {
+        try await withThrowingTaskGroup(
+            of: StoreKit.VerificationResult<StoreKit.AppTransaction>.self
+        ) { [timeoutNanoseconds] group in
+            group.addTask {
+                try await AppTransaction.shared
+            }
+
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                throw CommercePurchaseError.network
+            }
+
+            defer { group.cancelAll() }
+
+            guard let result = try await group.next() else {
+                logger.error("Timed out waiting for AppTransaction with no result.")
+                throw CommercePurchaseError.network
+            }
+
+            return result
+        }
     }
 
     @available(macOS 13.0, iOS 16.0, *)

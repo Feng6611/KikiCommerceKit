@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Fixed
+
+- **The legacy paid-app lookup can no longer stall an entitlement refresh.**
+  `AppTransaction.shared` runs first in `refreshEntitlement()` and reaches the
+  App Store; on a copy with no receipt — a development build, a sandbox
+  account, an offline Mac — it took seconds or never returned. It was the one
+  unbounded await in that path, so a host sat on "checking purchases" for as
+  long as StoreKit took. It is now bounded by the same timeout as the
+  RevenueCat requests (`requestTimeoutNanoseconds`).
+
 ### Added
 
 - **`KikiAccessDebugMode.expired`.** The debug panel could set a trial that

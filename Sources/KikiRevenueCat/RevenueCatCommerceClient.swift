@@ -23,7 +23,9 @@ public final class RevenueCatCommerceClient: NSObject, CommerceClient {
         self.configuration = configuration
         self.revenueCatConfiguration = revenueCatConfiguration
         self.sdkClient = RevenueCatPurchasesSDKClient()
-        self.legacyEntitlementSource = LegacyPaidAppEntitlementSource()
+        self.legacyEntitlementSource = LegacyPaidAppEntitlementSource(
+            timeoutNanoseconds: revenueCatConfiguration.requestTimeoutNanoseconds
+        )
         self.logger = Logger(
             subsystem: configuration.logSubsystem,
             category: configuration.logCategory
@@ -41,7 +43,10 @@ public final class RevenueCatCommerceClient: NSObject, CommerceClient {
         self.configuration = configuration
         self.revenueCatConfiguration = revenueCatConfiguration
         self.sdkClient = sdkClient
-        self.legacyEntitlementSource = legacyEntitlementSource ?? LegacyPaidAppEntitlementSource()
+        self.legacyEntitlementSource = legacyEntitlementSource
+            ?? LegacyPaidAppEntitlementSource(
+                timeoutNanoseconds: revenueCatConfiguration.requestTimeoutNanoseconds
+            )
         self.logger = Logger(
             subsystem: configuration.logSubsystem,
             category: configuration.logCategory
