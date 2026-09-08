@@ -34,6 +34,7 @@ struct KikiAccessPaywallActionPolicy: Equatable {
 final class KikiAccessPaywallWorkflow: ObservableObject {
     @Published private(set) var isLoadingOfferings = false
     @Published private(set) var isStartingTrial = false
+    @Published private(set) var lastAction: KikiAccessPaywallActionKind?
 
     private let manager: KikiAccessManager
 
@@ -62,6 +63,7 @@ final class KikiAccessPaywallWorkflow: ObservableObject {
         guard !isBusy else {
             return false
         }
+        lastAction = .purchase
 
         do {
             try await manager.purchase(planID: planID)
@@ -75,6 +77,7 @@ final class KikiAccessPaywallWorkflow: ObservableObject {
         guard !isBusy else {
             return false
         }
+        lastAction = .restore
 
         do {
             try await manager.restorePurchases()
@@ -88,6 +91,7 @@ final class KikiAccessPaywallWorkflow: ObservableObject {
         guard !isBusy else {
             return false
         }
+        lastAction = .startTrial
 
         isStartingTrial = true
         defer { isStartingTrial = false }
@@ -101,8 +105,12 @@ public struct KikiAccessPaywallSheet: View {
     @StateObject private var workflow: KikiAccessPaywallWorkflow
     private let context: KikiAccessPaywallContext
     private let copy: KikiAccessPaywallCopy
+    private let stats: [KikiAccessPaywallStat]
     private let footerLinks: [KikiAccessPaywallLink]
     private let displayPlanIDs: [String]?
+    /// Hosts can keep commerce configuration stable while resolving card copy
+    /// from a live, app-owned locale at render time.
+    private let planPresentation: (@MainActor (KikiAccessPlanProduct) -> KikiPaywallPlanPresentation)?
     private let tint: Color
     private let onFinish: () -> Void
 
@@ -114,24 +122,51 @@ public struct KikiAccessPaywallSheet: View {
     ///   carries plans that are sold elsewhere — a win-back discount SKU must
     ///   be purchasable through the manager without appearing as a third card
     ///   on the regular paywall, where it would undercut the listed price.
+    /// - Parameter planPresentation: Optional host-owned display mapping for
+    ///   plan cards. Use this for an in-app language switch: manager
+    ///   configuration is long-lived and cannot react to a locale change.
     public init(
         manager: KikiAccessManager,
         context: KikiAccessPaywallContext,
         copy: KikiAccessPaywallCopy = KikiAccessPaywallCopy(),
+        stats: [KikiAccessPaywallStat] = [],
         footerLinks: [KikiAccessPaywallLink] = [],
-        displayPlanIDs: [String]? = nil,
+        displayPlanIDs: [String]?,
+        planPresentation: (@MainActor (KikiAccessPlanProduct) -> KikiPaywallPlanPresentation)? = nil,
         tint: Color = .accentColor,
         onFinish: @escaping () -> Void = {}
     ) {
         self.manager = manager
         self.context = context
         self.copy = copy
+        self.stats = stats
         self.footerLinks = footerLinks
         self.displayPlanIDs = displayPlanIDs
+        self.planPresentation = planPresentation
         self.tint = tint
         self.onFinish = onFinish
         _workflow = StateObject(wrappedValue: KikiAccessPaywallWorkflow(manager: manager))
         _selectedPlanID = State(initialValue: manager.configuration.defaultPlanID)
+    }
+
+    /// Compatibility entry for 0.2.1 callers, including initializer references.
+    public init(
+        manager: KikiAccessManager,
+        context: KikiAccessPaywallContext,
+        copy: KikiAccessPaywallCopy = KikiAccessPaywallCopy(),
+        stats: [KikiAccessPaywallStat] = [],
+        footerLinks: [KikiAccessPaywallLink] = [],
+        tint: Color = .accentColor,
+        planPresentation: @escaping (KikiAccessPlanProduct) -> KikiPaywallPlanPresentation = { product in
+            KikiPaywallPlanPresentation(id: product.id, title: product.title, displayPrice: product.displayPrice,
+                                       billingDetail: product.billingDetail, badge: product.badge,
+                                       isAvailable: product.isAvailable)
+        },
+        onFinish: @escaping () -> Void = {}
+    ) {
+        self.init(manager: manager, context: context, copy: copy, stats: stats,
+                  footerLinks: footerLinks, displayPlanIDs: nil, planPresentation: planPresentation,
+                  tint: tint, onFinish: onFinish)
     }
 
     public var body: some View {
@@ -166,6 +201,7 @@ public struct KikiAccessPaywallSheet: View {
             headerSubtitle: subtitle,
             plans: plans,
             features: copy.features,
+            stats: stats.map { KikiPaywallStatConfig(id: $0.id, value: $0.value, label: $0.label) },
             footnote: nil,
             footerLinks: footerLinks.map {
                 KikiPaywallLinkPresentation(id: $0.id, title: $0.title, url: $0.url)
@@ -187,7 +223,7 @@ public struct KikiAccessPaywallSheet: View {
         case .expired:
             return .expired
         case .pro(let plan, _):
-            return .entitled(planTitle: plan.title)
+            return .entitled(planTitle: presentation(for: manager.planProduct(for: plan.id)).title)
         }
     }
 
@@ -221,16 +257,18 @@ public struct KikiAccessPaywallSheet: View {
     }
 
     private var plans: [KikiPaywallPlanPresentation] {
-        displayedPlans.map { product in
-            KikiPaywallPlanPresentation(
-                id: product.id,
-                title: product.title,
-                displayPrice: product.displayPrice,
-                billingDetail: product.billingDetail,
-                badge: product.badge,
-                isAvailable: product.isAvailable
-            )
-        }
+        displayedPlans.map(presentation(for:))
+    }
+
+    private func presentation(for product: KikiAccessPlanProduct) -> KikiPaywallPlanPresentation {
+        planPresentation?(product) ?? KikiPaywallPlanPresentation(
+            id: product.id,
+            title: product.title,
+            displayPrice: product.displayPrice,
+            billingDetail: product.billingDetail,
+            badge: product.badge,
+            isAvailable: product.isAvailable
+        )
     }
 
     private var primaryAction: KikiPaywallActionPresentation {
@@ -330,7 +368,8 @@ public struct KikiAccessPaywallSheet: View {
                 )
             case .error:
                 return KikiPaywallMessagePresentation(
-                    text: copy.purchaseErrorMessage,
+                    text: workflow.lastAction == .restore ? copy.restoreErrorMessage
+                        : workflow.lastAction == .startTrial ? copy.trialErrorMessage : copy.purchaseErrorMessage,
                     tone: .danger
                 )
             }

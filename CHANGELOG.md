@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 - 2026-09-08
+
+### Changed
+
+- Pin Kiki_mackit 0.10.0 for adaptive sheets and the refined component APIs.
+- Allow caller-owned live plan presentation without changing commerce identity,
+  availability or entitlement state.
+- Preserve the 0.2.1 account-stat display API while keeping the current main
+  branch's displayPlanIDs filtering.
+
 
 ### Fixed
 
@@ -24,6 +33,82 @@
   carries a plan sold elsewhere — a win-back discount SKU must be purchasable
   through the manager without appearing beside the full-price card on the
   regular paywall. `nil` (the default) lists every plan, as before.
+
+### Migration
+
+- Existing copy error fields and the 0.2.1 sheet initializer remain available.
+- Exhaustive switches over KikiAccessDebugMode must handle the new expired case.
+
+## 0.2.1 - 2026-07-28
+
+### Added
+
+- **`stats:` on `KikiAccessPaywallSheet`.** `KikiPaywallPresentation` has
+  carried a `stats` slot since Kiki 0.9.0, but the commerce sheet never
+  filled it. Callers can now pass `[KikiAccessPaywallStat]` (value over
+  caption, one line each) — intended for facts about the user's own account.
+  Defaults to empty, so existing callers are unaffected. Pairs with the fix
+  below: it is what an entitled user gets instead of plan cards.
+
+### Fixed
+
+- **Entitled users are no longer shown plan cards.** `KikiAccessPaywallSheet`
+  passed `manager.availablePlans` to the sheet in every access state, so a
+  customer who already owned Pro saw priced Yearly/Lifetime cards — one of
+  them badged "Best Value" — directly under "Your Pro access is active."
+  The action policy already collapsed to a single dismiss button in that
+  state; the plan row was the missed half. `KikiAccessPaywallPlanPolicy`
+  now gates it, and the sheet renders as a status view for entitled users.
+  This also hides plans from subscribers who could move to a higher tier:
+  the kit has no ordering over `CommercePlan` and cannot tell an upgrade
+  from a second charge, so cross-tier upgrades need their own surface.
+
+### Changed
+
+- **Localization opt-in.** Every `String` default in the
+  `KikiAccessPaywallCopy` initializer now resolves through the host app's
+  main bundle via `String(localized:, bundle: .main, ...)` — 15 default
+  values across `title`, subtitles, action titles, `loadingOptionsMessage`,
+  `unavailableOptionsMessage`, purchase/restore/trial success and error
+  messages. Callers that already override every field see no change;
+  callers that relied on defaults now pick up translations from their own
+  `Localizable.xcstrings`. Also fixed the source-side `Loading purchase
+  options...` → `Loading purchase options…`. See `Docs/Localization.md`.
+
+## 0.2.0 - 2026-07-20
+
+Requires `Kiki_mackit` 0.9.0 for the new `KikiPaywallActionStyle`
+API. The bump is minor rather than a patch because downstream apps
+that rebuild against this release will see restore render as a
+footer link rather than a bordered button — a visible UI change
+though no API break.
+
+### Changed
+
+- Bumped `Kiki_mackit` exact dependency to `0.9.0`.
+- `restoreAction` in `KikiAccessPaywallSheet` now sets
+  `style: .footerLink`. Restore is a return path (not a conversion
+  CTA), and Kiki 0.9.0 splits `.footerLink`-styled actions out of
+  the primary button stack into a dot-separated link row inside the
+  footer. Downstream apps get the cleaner CTA hierarchy without any
+  code change on their side.
+
+## 0.1.2 - 2026-07-19
+
+### Fixed
+
+- Paywall purchase/trial/restore/dismiss roles now carry stable identities
+  through rebuilt presentation snapshots, preserving SwiftUI focus and diffing.
+- Paywall failures now use operation-specific purchase, restore, and free-trial
+  messages while keeping copy host-configurable.
+
+## 0.1.1 - 2026-07-14
+
+### Fixed
+
+- Bumped the exact `Kiki_mackit` dependency to `0.8.1`, keeping CommerceKit
+  compatible with the transparent rounded-window fix used by onboarding
+  paywall sheets.
 
 ## 0.1.0 - 2026-07-14
 

@@ -126,6 +126,7 @@ struct KikiProPaywallViewsTests {
         let workflow = KikiAccessPaywallWorkflow(manager: manager)
 
         let didComplete = await workflow.purchase(planID: "supporterLifetime")
+        #expect(workflow.lastAction == .purchase)
 
         #expect(didComplete)
         #expect(manager.status.isPro)
@@ -144,6 +145,7 @@ struct KikiProPaywallViewsTests {
         let workflow = KikiAccessPaywallWorkflow(manager: manager)
 
         let didComplete = await workflow.restorePurchases()
+        #expect(workflow.lastAction == .restore)
 
         #expect(didComplete)
         #expect(manager.status.isPro)
@@ -155,6 +157,7 @@ struct KikiProPaywallViewsTests {
         let workflow = KikiAccessPaywallWorkflow(manager: manager)
 
         let didComplete = await workflow.startTrial()
+        #expect(workflow.lastAction == .startTrial)
 
         #expect(didComplete)
         #expect(manager.status.isActive)

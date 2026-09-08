@@ -17,6 +17,8 @@ public struct KikiAccessPaywallCopy: Equatable, Sendable {
     public let restoreSuccessMessage: String
     public let noActivePurchaseMessage: String
     public let purchaseErrorMessage: String
+    public let restoreErrorMessage: String
+    public let trialErrorMessage: String
 
     public init(
         title: String = "Choose your plan",
@@ -34,7 +36,9 @@ public struct KikiAccessPaywallCopy: Equatable, Sendable {
         purchaseSuccessMessage: String = "Purchase successful. Pro unlocked.",
         restoreSuccessMessage: String = "Purchase restored.",
         noActivePurchaseMessage: String = "No active purchase found on this account.",
-        purchaseErrorMessage: String = "Something went wrong. Please try again."
+        purchaseErrorMessage: String = "Something went wrong. Please try again.",
+        restoreErrorMessage: String = String(localized: "Purchases couldn’t be restored.", bundle: .main),
+        trialErrorMessage: String = String(localized: "The free trial couldn’t be started.", bundle: .main)
     ) {
         self.title = title
         self.proSubtitle = proSubtitle
@@ -52,6 +56,21 @@ public struct KikiAccessPaywallCopy: Equatable, Sendable {
         self.restoreSuccessMessage = restoreSuccessMessage
         self.noActivePurchaseMessage = noActivePurchaseMessage
         self.purchaseErrorMessage = purchaseErrorMessage
+        self.restoreErrorMessage = restoreErrorMessage
+        self.trialErrorMessage = trialErrorMessage
+    }
+}
+
+/// Caller-owned account figures retained from the 0.2.1 public API.
+public struct KikiAccessPaywallStat: Equatable, Identifiable, Sendable {
+    public let id: String
+    public let value: String
+    public let label: String
+
+    public init(id: String? = nil, value: String, label: String) {
+        self.id = id ?? "\(value)\u{1F}\(label)"
+        self.value = value
+        self.label = label
     }
 }
 
