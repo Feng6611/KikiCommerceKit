@@ -200,7 +200,9 @@ public struct KikiAccessPaywallSheet: View {
             headerTitle: copy.title,
             headerSubtitle: subtitle,
             plans: plans,
-            features: copy.features,
+            // An owner is not being sold to. Listing features and prices to
+            // someone who already paid reads as "did my purchase go through?".
+            features: Self.showsCatalog(for: manager.status) ? copy.features : [],
             stats: stats.map { KikiPaywallStatConfig(id: $0.id, value: $0.value, label: $0.label) },
             footnote: nil,
             footerLinks: footerLinks.map {
@@ -241,7 +243,14 @@ public struct KikiAccessPaywallSheet: View {
     }
 
     private var displayedPlans: [KikiAccessPlanProduct] {
-        Self.displayedPlans(from: manager.availablePlans, displayPlanIDs: displayPlanIDs)
+        guard Self.showsCatalog(for: manager.status) else { return [] }
+        return Self.displayedPlans(from: manager.availablePlans, displayPlanIDs: displayPlanIDs)
+    }
+
+    /// Whether the sheet lists plans and features for this state. An entitled
+    /// user sees their access summary — subtitle, host stats and Done — only.
+    static func showsCatalog(for status: KikiAccessState) -> Bool {
+        !status.isPro
     }
 
     static func displayedPlans(
@@ -329,9 +338,12 @@ public struct KikiAccessPaywallSheet: View {
     }
 
     private var restoreAction: KikiPaywallActionPresentation {
+        // A footer link, not a second full-width button: restore is required
+        // to be reachable, not to compete with the purchase it sits under.
         KikiPaywallActionPresentation(
             title: copy.restoreActionTitle,
             isLoading: manager.isRestoringPurchases,
+            style: .footerLink,
             action: {
                 run {
                     await workflow.restorePurchases()
@@ -377,7 +389,8 @@ public struct KikiAccessPaywallSheet: View {
         if workflow.isLoadingOfferings {
             return KikiPaywallMessagePresentation(text: copy.loadingOptionsMessage)
         }
-        if displayedPlans.allSatisfy({ !$0.isAvailable }),
+        if Self.showsCatalog(for: manager.status),
+           displayedPlans.allSatisfy({ !$0.isAvailable }),
            manager.status.canStartTrial == false {
             return KikiPaywallMessagePresentation(
                 text: copy.unavailableOptionsMessage

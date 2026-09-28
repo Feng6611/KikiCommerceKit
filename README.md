@@ -30,6 +30,14 @@ entitlement refresh is authoritative:
 Apps still decide what product event counts as usage and record it only after
 that product action succeeds.
 
+## Automatic prompts
+
+`KikiAccessPromptSchedule` answers *whether* a paywall may appear unasked —
+a single notice inside `trialEndingNotice` of a time trial's end, and capped,
+spaced prompts after expiry — and only on `ready` readiness. The app decides
+*where* and *after which product moment* to present it, then calls
+`recordPresented`. Storage keys are host-supplied.
+
 Cross-product commerce + paywall toolkit for Kiki Mac apps. Three layered targets:
 
 - **KikiCommerceCore** — provider-neutral access workflow: `CommerceClient`, commerce models/configuration, trial state, `KikiAccessManager`, and app-supplied plan metadata. No RevenueCat and no SwiftUI.

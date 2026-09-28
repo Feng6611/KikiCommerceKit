@@ -90,6 +90,25 @@ struct KikiProPaywallViewsTests {
         #expect(policy.secondary.isEmpty)
     }
 
+    @Test("Entitled users see an access summary, not the plan catalog")
+    func entitledHidesCatalog() {
+        let manager = makeManager()
+        let plan = manager.configuration.plans[0]
+        let owned = KikiAccessState.pro(
+            plan: plan,
+            entitlement: CommerceEntitlement(
+                plan: plan.commercePlan,
+                productIdentifier: "dev.kkuk.test.pro.lifetime",
+                entitlementIdentifier: "pro",
+                expirationDate: nil
+            )
+        )
+
+        #expect(KikiAccessPaywallSheet.showsCatalog(for: owned) == false)
+        #expect(KikiAccessPaywallSheet.showsCatalog(for: .expired))
+        #expect(KikiAccessPaywallSheet.showsCatalog(for: .notStarted))
+    }
+
     @Test("Workflow loads offerings before presentation")
     func workflowLoadsOfferings() async {
         let client = NoopCommerceClient()

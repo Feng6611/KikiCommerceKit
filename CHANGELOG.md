@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `KikiAccessPromptSchedule` and `KikiAccessPromptRules` pace automatic
+  paywall presentation: one notice before a time trial ends, then at most
+  `maximumExpiredPrompts` expiry prompts `expiredRepeatInterval` apart, only
+  with an authoritative `ready` readiness. `.recommended` is two days of
+  notice and three daily expiry prompts. Asking records nothing; hosts call
+  `recordPresented` after presenting.
+
+### Changed
+
+- `KikiAccessPaywallSheet` shows an entitled user their access summary only:
+  no plan cards, no feature list, and no "purchase options unavailable"
+  message. Apple's guidance is to encourage a purchase only when someone does
+  not already own it.
+- Restore is a footer link rather than a second full-width button.
+
 ## 0.3.0 - 2026-09-08
 
 ### Changed
