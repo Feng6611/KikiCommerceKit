@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 - 2026-10-04
 
 ### Added
 
@@ -13,6 +13,7 @@
 
 ### Changed
 
+- Pin Kiki_mackit 0.10.1 so onboarding and utility windows are centered on first launch.
 - `KikiAccessPaywallSheet` shows an entitled user their access summary only:
   no plan cards, no feature list, and no "purchase options unavailable"
   message. Apple's guidance is to encourage a purchase only when someone does
