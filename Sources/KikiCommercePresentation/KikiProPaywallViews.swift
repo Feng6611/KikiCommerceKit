@@ -59,14 +59,14 @@ final class KikiAccessPaywallWorkflow: ObservableObject {
         await manager.loadOfferings()
     }
 
-    func purchase(planID: String) async -> Bool {
+    func purchase(planID: String, placement: String? = nil) async -> Bool {
         guard !isBusy else {
             return false
         }
         lastAction = .purchase
 
         do {
-            try await manager.purchase(planID: planID)
+            try await manager.purchase(planID: planID, placement: placement)
             return manager.status.isPro
         } catch {
             return false
@@ -111,6 +111,7 @@ public struct KikiAccessPaywallSheet: View {
     /// Hosts can keep commerce configuration stable while resolving card copy
     /// from a live, app-owned locale at render time.
     private let planPresentation: (@MainActor (KikiAccessPlanProduct) -> KikiPaywallPlanPresentation)?
+    private let placement: String?
     private let tint: Color
     private let onFinish: () -> Void
 
@@ -125,6 +126,8 @@ public struct KikiAccessPaywallSheet: View {
     /// - Parameter planPresentation: Optional host-owned display mapping for
     ///   plan cards. Use this for an in-app language switch: manager
     ///   configuration is long-lived and cannot react to a locale change.
+    /// - Parameter placement: the surface that opened this sheet; a purchase
+    ///   from it is attributed to that placement in the store's analytics.
     public init(
         manager: KikiAccessManager,
         context: KikiAccessPaywallContext,
@@ -133,6 +136,7 @@ public struct KikiAccessPaywallSheet: View {
         footerLinks: [KikiAccessPaywallLink] = [],
         displayPlanIDs: [String]?,
         planPresentation: (@MainActor (KikiAccessPlanProduct) -> KikiPaywallPlanPresentation)? = nil,
+        placement: String? = nil,
         tint: Color = .accentColor,
         onFinish: @escaping () -> Void = {}
     ) {
@@ -143,6 +147,7 @@ public struct KikiAccessPaywallSheet: View {
         self.footerLinks = footerLinks
         self.displayPlanIDs = displayPlanIDs
         self.planPresentation = planPresentation
+        self.placement = placement
         self.tint = tint
         self.onFinish = onFinish
         _workflow = StateObject(wrappedValue: KikiAccessPaywallWorkflow(manager: manager))
@@ -204,7 +209,7 @@ public struct KikiAccessPaywallSheet: View {
             // someone who already paid reads as "did my purchase go through?".
             features: Self.showsCatalog(for: manager.status) ? copy.features : [],
             stats: stats.map { KikiPaywallStatConfig(id: $0.id, value: $0.value, label: $0.label) },
-            footnote: nil,
+            footnote: Self.footnote(plans: displayedPlans, selectedPlanID: selectedPlanID),
             footerLinks: footerLinks.map {
                 KikiPaywallLinkPresentation(id: $0.id, title: $0.title, url: $0.url)
             },
@@ -251,6 +256,11 @@ public struct KikiAccessPaywallSheet: View {
     /// user sees their access summary — subtitle, host stats and Done — only.
     static func showsCatalog(for status: KikiAccessState) -> Bool {
         !status.isPro
+    }
+
+    /// The selected plan's purchase terms, under the purchase button.
+    static func footnote(plans: [KikiAccessPlanProduct], selectedPlanID: String) -> String? {
+        plans.first { $0.id == selectedPlanID }?.terms.flatMap { $0.isEmpty ? nil : $0 }
     }
 
     static func displayedPlans(
@@ -319,7 +329,7 @@ public struct KikiAccessPaywallSheet: View {
             },
             action: { planID in
                 run {
-                    await workflow.purchase(planID: planID)
+                    await workflow.purchase(planID: planID, placement: placement)
                 }
             }
         )

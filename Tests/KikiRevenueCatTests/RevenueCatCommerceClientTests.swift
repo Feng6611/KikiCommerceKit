@@ -72,6 +72,43 @@ final class RevenueCatCommerceClientTests: XCTestCase {
         XCTAssertEqual(offering?.products.map(\.plan), [.yearly])
     }
 
+    func testPlacementIsPresentedWithThePackage() throws {
+        let offered = try XCTUnwrap(makeOffering(identifier: "default", productIdentifiers: ["com.example.app.pro.lifetime"])
+            .availablePackages.first)
+
+        let placed = RevenueCatCommerceClient.package(offered, presentedAt: "galleryHang")
+
+        XCTAssertEqual(placed.identifier, offered.identifier)
+        XCTAssertEqual(placed.storeProduct.productIdentifier, "com.example.app.pro.lifetime")
+        XCTAssertEqual(placed.presentedOfferingContext.offeringIdentifier, "default")
+        XCTAssertEqual(placed.presentedOfferingContext.placementIdentifier, "galleryHang")
+        XCTAssertTrue(RevenueCatCommerceClient.package(offered, presentedAt: nil) === offered)
+        XCTAssertTrue(RevenueCatCommerceClient.package(offered, presentedAt: "") === offered)
+    }
+
+    func testPurchaseThroughTheProtocolCarriesThePlacement() async throws {
+        let sdkClient = MockRevenueCatSDKClient()
+        sdkClient.loadedOfferings = .init(
+            current: makeOffering(identifier: "default", productIdentifiers: [configuration.productIdentifiers[.lifetime]!]),
+            all: [:]
+        )
+        let concrete = RevenueCatCommerceClient(
+            configuration: configuration,
+            revenueCatConfiguration: revenueCatConfiguration,
+            sdkClient: sdkClient
+        )
+        concrete.configureIfNeeded()
+        // The access manager holds the client as `any CommerceClient`.
+        let client: any CommerceClient = concrete
+
+        _ = try? await client.purchase(.lifetime, placement: "galleryHang")
+        _ = try? await client.purchase(.lifetime)
+
+        XCTAssertEqual(sdkClient.purchasedPackages.map(\.presentedOfferingContext.placementIdentifier), ["galleryHang", nil])
+        XCTAssertEqual(sdkClient.purchasedPackages.map(\.storeProduct.productIdentifier),
+                       [configuration.productIdentifiers[.lifetime]!, configuration.productIdentifiers[.lifetime]!])
+    }
+
     func testLegacyEntitlementStaysDisabledByDefault() async throws {
         let sdkClient = MockRevenueCatSDKClient()
         let legacySource = MockLegacyPaidAppEntitlementSource()
@@ -250,7 +287,10 @@ private final class MockRevenueCatSDKClient: RevenueCatSDKClient {
         return loadedCustomerInfo
     }
 
+    var purchasedPackages: [Package] = []
+
     func purchase(package: Package) async throws -> PurchaseResultData {
+        purchasedPackages.append(package)
         throw CommercePurchaseError.unknown("Not implemented in this test double.")
     }
 

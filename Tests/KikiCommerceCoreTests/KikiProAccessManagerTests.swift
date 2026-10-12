@@ -106,6 +106,29 @@ struct KikiAccessManagerTests {
         #expect(snapshot.originalPurchaseDate == purchaseDate)
     }
 
+    @Test("Purchase passes the surface it started from to the client")
+    func purchasePassesPlacement() async throws {
+        let client = MockCommerceClient()
+        client.purchaseEntitlement = Fixture.entitlement(plan: CommercePlan("supporterLifetime"))
+        let manager = Fixture(client: client).makeManager()
+
+        try await manager.purchase(planID: "supporterLifetime", placement: "settings")
+        try await manager.purchase(planID: "supporterLifetime")
+
+        #expect(client.purchasePlacements == ["settings", nil])
+    }
+
+    @Test("Plan terms show the store price")
+    func planTermsShowStorePrice() {
+        let plan = KikiAccessPlan(id: "yearly", commercePlan: CommercePlan("yearly"), title: "Yearly",
+                                  fallbackDisplayPrice: "$9.99", billingDetail: "per year", subtitle: "",
+                                  terms: "Renews at {price} a year until you cancel.")
+        let product = KikiAccessPlanProduct(plan: plan, displayPrice: "¥68", billingDetail: "per year", isAvailable: true)
+
+        #expect(product.terms == "Renews at ¥68 a year until you cancel.")
+        #expect(KikiAccessPlanProduct.fallback(for: plan).terms == "Renews at $9.99 a year until you cancel.")
+    }
+
     @Test("Purchase without entitlement retries refresh and reports activation pending")
     func purchaseWithoutEntitlementRetriesRefreshAndReportsActivationPending() async {
         let client = MockCommerceClient()
@@ -213,6 +236,7 @@ final class MockCommerceClient: CommerceClient {
     var configureCallCount = 0
     var loadOfferingCallCount = 0
     var refreshEntitlementCallCount = 0
+    var purchasePlacements: [String?] = []
 
     func configureIfNeeded() {
         configureCallCount += 1
@@ -236,6 +260,11 @@ final class MockCommerceClient: CommerceClient {
         }
 
         return currentOffering
+    }
+
+    func purchase(_ plan: CommercePlan, placement: String?) async throws -> CommerceEntitlement? {
+        purchasePlacements.append(placement)
+        return try await purchase(plan)
     }
 
     func purchase(_ plan: CommercePlan) async throws -> CommerceEntitlement? {

@@ -175,6 +175,12 @@ public final class KikiAccessManager: ObservableObject {
     }
 
     public func purchase(planID: String) async throws {
+        try await purchase(planID: planID, placement: nil)
+    }
+
+    /// - Parameter placement: the surface the purchase started from, passed to
+    ///   the commerce client for attribution.
+    public func purchase(planID: String, placement: String?) async throws {
         configureIfNeeded()
         clearCommerceFeedback()
         guard let plan = plan(for: planID) else {
@@ -185,7 +191,7 @@ public final class KikiAccessManager: ObservableObject {
         defer { purchaseInProgressPlanID = nil }
 
         do {
-            let snapshot = try await commerceClient.purchase(plan.commercePlan)
+            let snapshot = try await commerceClient.purchase(plan.commercePlan, placement: placement)
             lastError = nil
             entitlementSnapshot = snapshot
             readiness = .ready

@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `KikiAccessPlan.terms`: purchase terms shown as the paywall footnote while
+  that plan is selected, so a subscription's renewal terms sit under the
+  purchase button (App Review 3.1.2). `{price}` becomes the store price.
+- Purchase placement: `KikiAccessPaywallSheet(placement:)` and
+  `KikiAccessManager.purchase(planID:placement:)` pass the surface that opened
+  the sheet to `CommerceClient.purchase(_:placement:)`. The RevenueCat client
+  presents the package at that placement, so RevenueCat attributes the sale to
+  it. Other clients get a default that ignores the placement.
+
 ## 0.4.0 - 2026-10-04
 
 ### Added

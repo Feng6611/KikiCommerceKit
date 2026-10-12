@@ -15,6 +15,8 @@ public final class KikiInMemoryCommerceClient: CommerceClient {
     public private(set) var refreshCallCount = 0
     public private(set) var offeringCallCount = 0
     public private(set) var purchaseCallCount = 0
+    /// The placement the last purchase was started from.
+    public private(set) var lastPurchasePlacement: String?
     public private(set) var restoreCallCount = 0
 
     public init(
@@ -45,7 +47,12 @@ public final class KikiInMemoryCommerceClient: CommerceClient {
     }
 
     public func purchase(_ plan: CommercePlan) async throws -> CommerceEntitlement? {
+        try await purchase(plan, placement: nil)
+    }
+
+    public func purchase(_ plan: CommercePlan, placement: String?) async throws -> CommerceEntitlement? {
         purchaseCallCount += 1
+        lastPurchasePlacement = placement
         let entitlement = try purchaseResults[plan, default: .success(nil)].get()
         send(entitlement: entitlement)
         return entitlement

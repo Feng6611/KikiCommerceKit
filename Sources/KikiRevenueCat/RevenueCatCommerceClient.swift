@@ -142,15 +142,20 @@ public final class RevenueCatCommerceClient: NSObject, CommerceClient {
     }
 
     public func purchase(_ plan: CommercePlan) async throws -> CommerceEntitlement? {
+        try await purchase(plan, placement: nil)
+    }
+
+    public func purchase(_ plan: CommercePlan, placement: String?) async throws -> CommerceEntitlement? {
         try ensureConfigured()
 
         let resolvedOffering = try await resolveOffering()
-        guard let package = resolvedOffering.package(for: plan, configuration: configuration) else {
+        guard let offered = resolvedOffering.package(for: plan, configuration: configuration) else {
             throw CommercePurchaseError.packageNotFound(plan)
         }
+        let package = Self.package(offered, presentedAt: placement)
 
         logger.notice(
-            "Starting purchase. plan=\(plan.rawValue) package=\(package.identifier) product=\(package.storeProduct.productIdentifier)"
+            "Starting purchase. plan=\(plan.rawValue) package=\(package.identifier) product=\(package.storeProduct.productIdentifier) placement=\(placement ?? "-")"
         )
 
         do {
@@ -194,6 +199,24 @@ public final class RevenueCatCommerceClient: NSObject, CommerceClient {
             configuration: configuration,
             logger: logger
         ) ?? legacyEntitlementSource.cachedLegacyEntitlement
+    }
+
+    /// The same package, presented at `placement`: RevenueCat records the
+    /// placement with the transaction, which attributes the sale to the surface.
+    static func package(_ package: Package, presentedAt placement: String?) -> Package {
+        guard let placement, !placement.isEmpty else { return package }
+        let context = package.presentedOfferingContext
+        return Package(
+            identifier: package.identifier,
+            packageType: package.packageType,
+            storeProduct: package.storeProduct,
+            presentedOfferingContext: PresentedOfferingContext(
+                offeringIdentifier: context.offeringIdentifier,
+                placementIdentifier: placement,
+                targetingContext: context.targetingContext
+            ),
+            webCheckoutUrl: package.webCheckoutUrl
+        )
     }
 
     private func ensureConfigured() throws {

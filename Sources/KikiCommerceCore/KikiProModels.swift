@@ -31,6 +31,10 @@ public struct KikiAccessPlan: Equatable, Identifiable, Sendable {
     public let billingDetail: String
     public let subtitle: String
     public let badge: String?
+    /// Purchase terms shown under the purchase button while this plan is
+    /// selected, such as a subscription's renewal terms. `{price}` becomes the
+    /// store's localized price.
+    public let terms: String?
 
     public init(
         id: String,
@@ -39,7 +43,8 @@ public struct KikiAccessPlan: Equatable, Identifiable, Sendable {
         fallbackDisplayPrice: String,
         billingDetail: String,
         subtitle: String,
-        badge: String? = nil
+        badge: String? = nil,
+        terms: String? = nil
     ) {
         self.id = id
         self.commercePlan = commercePlan
@@ -48,6 +53,7 @@ public struct KikiAccessPlan: Equatable, Identifiable, Sendable {
         self.billingDetail = billingDetail
         self.subtitle = subtitle
         self.badge = badge
+        self.terms = terms
     }
 }
 
@@ -61,6 +67,7 @@ public struct KikiAccessPlanProduct: Equatable, Identifiable, Sendable {
     public var title: String { plan.title }
     public var subtitle: String { plan.subtitle }
     public var badge: String? { plan.badge }
+    public var terms: String? { plan.terms?.replacingOccurrences(of: "{price}", with: displayPrice) }
 
     public init(
         plan: KikiAccessPlan,

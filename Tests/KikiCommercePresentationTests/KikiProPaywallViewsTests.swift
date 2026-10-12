@@ -45,6 +45,23 @@ struct KikiProPaywallViewsTests {
         #expect(all.map(\.id) == available.map(\.id))
     }
 
+    @Test("Footnote carries the selected plan's terms only")
+    func footnoteFollowsSelection() {
+        func product(_ id: String, terms: String?) -> KikiAccessPlanProduct {
+            KikiAccessPlanProduct(
+                plan: KikiAccessPlan(id: id, commercePlan: CommercePlan(id), title: id, fallbackDisplayPrice: "$1",
+                                     billingDetail: "", subtitle: "", terms: terms),
+                displayPrice: "$5", billingDetail: "", isAvailable: true)
+        }
+        let plans = [product("yearly", terms: "Renews at {price} a year."), product("lifetime", terms: nil),
+                     product("empty", terms: "")]
+
+        #expect(KikiAccessPaywallSheet.footnote(plans: plans, selectedPlanID: "yearly") == "Renews at $5 a year.")
+        #expect(KikiAccessPaywallSheet.footnote(plans: plans, selectedPlanID: "lifetime") == nil)
+        #expect(KikiAccessPaywallSheet.footnote(plans: plans, selectedPlanID: "empty") == nil)
+        #expect(KikiAccessPaywallSheet.footnote(plans: [], selectedPlanID: "yearly") == nil)
+    }
+
     @Test("Settings keeps purchase primary and exposes trial plus restore")
     func settingsActionPolicy() {
         let policy = KikiAccessPaywallActionPolicy.resolve(
