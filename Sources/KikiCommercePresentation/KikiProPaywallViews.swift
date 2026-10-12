@@ -112,6 +112,7 @@ public struct KikiAccessPaywallSheet: View {
     /// from a live, app-owned locale at render time.
     private let planPresentation: (@MainActor (KikiAccessPlanProduct) -> KikiPaywallPlanPresentation)?
     private let placement: String?
+    private let note: String?
     private let tint: Color
     private let onFinish: () -> Void
 
@@ -128,6 +129,8 @@ public struct KikiAccessPaywallSheet: View {
     ///   configuration is long-lived and cannot react to a locale change.
     /// - Parameter placement: the surface that opened this sheet; a purchase
     ///   from it is attributed to that placement in the store's analytics.
+    /// - Parameter note: one host line under the purchase terms, inside the
+    ///   sheet (for example what stays free). Not shown to an owner.
     public init(
         manager: KikiAccessManager,
         context: KikiAccessPaywallContext,
@@ -137,6 +140,7 @@ public struct KikiAccessPaywallSheet: View {
         displayPlanIDs: [String]?,
         planPresentation: (@MainActor (KikiAccessPlanProduct) -> KikiPaywallPlanPresentation)? = nil,
         placement: String? = nil,
+        note: String? = nil,
         tint: Color = .accentColor,
         onFinish: @escaping () -> Void = {}
     ) {
@@ -148,6 +152,7 @@ public struct KikiAccessPaywallSheet: View {
         self.displayPlanIDs = displayPlanIDs
         self.planPresentation = planPresentation
         self.placement = placement
+        self.note = note
         self.tint = tint
         self.onFinish = onFinish
         _workflow = StateObject(wrappedValue: KikiAccessPaywallWorkflow(manager: manager))
@@ -209,7 +214,8 @@ public struct KikiAccessPaywallSheet: View {
             // someone who already paid reads as "did my purchase go through?".
             features: Self.showsCatalog(for: manager.status) ? copy.features : [],
             stats: stats.map { KikiPaywallStatConfig(id: $0.id, value: $0.value, label: $0.label) },
-            footnote: Self.footnote(plans: displayedPlans, selectedPlanID: selectedPlanID),
+            footnote: Self.footnote(plans: displayedPlans, selectedPlanID: selectedPlanID,
+                                    note: Self.showsCatalog(for: manager.status) ? note : nil),
             footerLinks: footerLinks.map {
                 KikiPaywallLinkPresentation(id: $0.id, title: $0.title, url: $0.url)
             },
@@ -258,9 +264,11 @@ public struct KikiAccessPaywallSheet: View {
         !status.isPro
     }
 
-    /// The selected plan's purchase terms, under the purchase button.
-    static func footnote(plans: [KikiAccessPlanProduct], selectedPlanID: String) -> String? {
-        plans.first { $0.id == selectedPlanID }?.terms.flatMap { $0.isEmpty ? nil : $0 }
+    /// The selected plan's purchase terms, then the host's note, under the purchase button.
+    static func footnote(plans: [KikiAccessPlanProduct], selectedPlanID: String, note: String? = nil) -> String? {
+        let terms = plans.first { $0.id == selectedPlanID }?.terms
+        let lines = [terms, note].compactMap { $0 }.filter { !$0.isEmpty }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
     static func displayedPlans(

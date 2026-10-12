@@ -12,6 +12,9 @@
   the sheet to `CommerceClient.purchase(_:placement:)`. The RevenueCat client
   presents the package at that placement, so RevenueCat attributes the sale to
   it. Other clients get a default that ignores the placement.
+- `KikiAccessPaywallSheet(note:)`: one host line under the purchase terms,
+  inside the sheet, so hosts stop appending a second surface below it.
+  Owners do not see it.
 
 ## 0.4.0 - 2026-10-04
 

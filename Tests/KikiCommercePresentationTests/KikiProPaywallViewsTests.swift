@@ -60,6 +60,11 @@ struct KikiProPaywallViewsTests {
         #expect(KikiAccessPaywallSheet.footnote(plans: plans, selectedPlanID: "lifetime") == nil)
         #expect(KikiAccessPaywallSheet.footnote(plans: plans, selectedPlanID: "empty") == nil)
         #expect(KikiAccessPaywallSheet.footnote(plans: [], selectedPlanID: "yearly") == nil)
+        #expect(KikiAccessPaywallSheet.footnote(plans: plans, selectedPlanID: "yearly", note: "Free stays free.")
+                == "Renews at $5 a year.\nFree stays free.")
+        #expect(KikiAccessPaywallSheet.footnote(plans: plans, selectedPlanID: "lifetime", note: "Free stays free.")
+                == "Free stays free.")
+        #expect(KikiAccessPaywallSheet.footnote(plans: plans, selectedPlanID: "lifetime", note: "") == nil)
     }
 
     @Test("Settings keeps purchase primary and exposes trial plus restore")
