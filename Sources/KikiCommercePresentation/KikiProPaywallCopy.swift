@@ -6,6 +6,8 @@ public struct KikiAccessPaywallCopy: Equatable, Sendable {
     public let trialSubtitle: String
     public let expiredSubtitle: String
     public let notStartedSubtitle: String
+    /// The free tier of an app without a trial (`KikiAccessState.free`).
+    public let freeSubtitle: String
     public let features: [String]
     public let purchaseActionTitle: String
     public let trialActionTitle: String
@@ -26,6 +28,7 @@ public struct KikiAccessPaywallCopy: Equatable, Sendable {
         trialSubtitle: String = "Choose a plan or continue with your trial.",
         expiredSubtitle: String = "Your trial has ended. Upgrade to keep using Pro.",
         notStartedSubtitle: String = "Choose a plan or start your free trial.",
+        freeSubtitle: String = String(localized: "Choose a plan to unlock Pro.", bundle: .main),
         features: [String] = [],
         purchaseActionTitle: String = "Unlock forever",
         trialActionTitle: String = "Start free trial",
@@ -45,6 +48,7 @@ public struct KikiAccessPaywallCopy: Equatable, Sendable {
         self.trialSubtitle = trialSubtitle
         self.expiredSubtitle = expiredSubtitle
         self.notStartedSubtitle = notStartedSubtitle
+        self.freeSubtitle = freeSubtitle
         self.features = features
         self.purchaseActionTitle = purchaseActionTitle
         self.trialActionTitle = trialActionTitle

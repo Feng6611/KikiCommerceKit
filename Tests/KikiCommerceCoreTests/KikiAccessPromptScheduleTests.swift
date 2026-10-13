@@ -24,6 +24,15 @@ struct KikiAccessPromptScheduleTests {
         #expect(schedule.nextPrompt(status: .trial(.time(daysRemaining: 1, expiresAt: expiresAt)), readiness: .ready) == nil)
     }
 
+    @Test("The free tier is never prompted as an expired trial")
+    func freeTierHasNoPrompt() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let (schedule, cleanup) = makeSchedule(now: { now })
+        defer { cleanup() }
+
+        #expect(schedule.nextPrompt(status: .free, readiness: .ready) == nil)
+    }
+
     @Test("Expiry prompts repeat on the interval and stop at the cap")
     func expiredPromptsAreCapped() {
         var now = Date(timeIntervalSince1970: 1_700_000_000)

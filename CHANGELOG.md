@@ -1,9 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 - 2026-10-13
 
 ### Added
 
+- `KikiAccessState.free`: an unpaid user in an app without a trial
+  (`KikiTrialPolicy.disabled`). Such a user used to be reported as
+  `.expired`, which invited "your trial has ended" copy and expiry prompts.
+  The paywall shows `KikiAccessPaywallCopy.freeSubtitle` and offers purchase
+  and restore; `KikiAccessPromptSchedule` never prompts it. The Debug
+  `notPro` override returns `.free` under a disabled trial policy.
+  `freeSubtitle` defaults to the main-bundle key "Choose a plan to unlock Pro.".
 - `KikiAccessPlan.terms`: purchase terms shown as the paywall footnote while
   that plan is selected, so a subscription's renewal terms sit under the
   purchase button (App Review 3.1.2). `{price}` becomes the store price.
@@ -15,6 +22,18 @@
 - `KikiAccessPaywallSheet(note:)`: one host line under the purchase terms,
   inside the sheet, so hosts stop appending a second surface below it.
   Owners do not see it.
+
+### Changed
+
+- Pin Kiki_mackit 0.11.0.
+
+### Migration from 0.4.0
+
+Requires Kiki_mackit 0.11.0 (`KikiPaywallAccessState.free`). `KikiAccessState`
+gains `.free`, the intended pre-1.0 minor break: exhaustive switches over it
+need the new case. An app with `trialPolicy: .disabled` that matched
+`.expired` to mean "free" should match `.free` instead; `.expired` now always
+means a trial that ran out.
 
 ## 0.4.0 - 2026-10-04
 

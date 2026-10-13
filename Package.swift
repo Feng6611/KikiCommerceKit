@@ -18,7 +18,7 @@ let package = Package(
             url: "https://github.com/RevenueCat/purchases-ios-spm.git",
             exact: "5.67.0"
         ),
-        .package(url: "https://github.com/Feng6611/Kiki_mackit.git", exact: "0.10.1")
+        .package(url: "https://github.com/Feng6611/Kiki_mackit.git", exact: "0.11.0")
     ],
     targets: [
         .target(name: "KikiCommerceCore"),

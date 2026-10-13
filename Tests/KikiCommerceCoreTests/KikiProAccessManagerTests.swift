@@ -182,6 +182,16 @@ struct KikiAccessManagerTests {
         #expect(manager.availablePlans.allSatisfy { !$0.isAvailable })
     }
 
+    @Test("Without a trial an unpaid user is on the free tier, never expired")
+    func disabledTrialIsFreeTier() {
+        let fixture = Fixture(trialPolicy: .disabled)
+        let manager = fixture.makeManager()
+
+        #expect(manager.status == .free)
+        #expect(!manager.status.isActive)
+        #expect(!manager.status.canStartTrial)
+    }
+
     @Test("Usage trial expires exactly at its configured limit")
     func usageTrialExpiresAtLimit() {
         let fixture = Fixture(

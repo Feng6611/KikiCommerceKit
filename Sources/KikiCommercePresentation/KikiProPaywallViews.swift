@@ -235,6 +235,8 @@ public struct KikiAccessPaywallSheet: View {
             return .trial
         case .expired:
             return .expired
+        case .free:
+            return .free
         case .pro(let plan, _):
             return .entitled(planTitle: presentation(for: manager.planProduct(for: plan.id)).title)
         }
@@ -248,6 +250,8 @@ public struct KikiAccessPaywallSheet: View {
             return copy.trialSubtitle
         case .expired:
             return copy.expiredSubtitle
+        case .free:
+            return copy.freeSubtitle
         case .pro:
             return copy.proSubtitle
         }

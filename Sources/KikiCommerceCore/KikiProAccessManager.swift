@@ -376,7 +376,7 @@ public final class KikiAccessManager: ObservableObject {
             case .live:
                 break
             case .notPro:
-                return .notStarted
+                return configuration.trialPolicy == .disabled ? .free : .notStarted
             case .trial:
                 let expiresAt = now().addingTimeInterval(2 * 86_400)
                 return .trial(.time(daysRemaining: 2, expiresAt: expiresAt))
@@ -399,7 +399,7 @@ public final class KikiAccessManager: ObservableObject {
 
         switch configuration.trialPolicy {
         case .disabled:
-            return .expired
+            return .free
         case .usage(let eventID, let limit):
             let safeLimit = max(0, limit)
             let used = max(0, usageMeter.usage(for: eventID))

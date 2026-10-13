@@ -78,6 +78,17 @@ struct KikiProPaywallViewsTests {
         #expect(policy.secondary == [.startTrial, .restore])
     }
 
+    @Test("The free tier offers purchase and restore, no trial")
+    func freeTierOffersPurchaseAndRestore() {
+        let policy = KikiAccessPaywallActionPolicy.resolve(
+            status: .free,
+            context: .settings
+        )
+
+        #expect(policy.primary == .purchase)
+        #expect(policy.secondary == [.restore])
+    }
+
     @Test("Onboarding offers purchase primary with trial and restore secondary")
     func onboardingActionPolicy() {
         let policy = KikiAccessPaywallActionPolicy.resolve(

@@ -117,7 +117,7 @@ public final class KikiAccessPromptSchedule {
             }
             return .trialEnded
 
-        case .notStarted, .trial(.usage), .pro:
+        case .notStarted, .free, .trial(.usage), .pro:
             return nil
         }
     }

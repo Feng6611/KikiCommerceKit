@@ -107,13 +107,16 @@ public enum KikiAccessState: Equatable {
     case notStarted
     case trial(KikiTrialProgress)
     case expired
+    /// No entitlement in an app without a trial (`KikiTrialPolicy.disabled`):
+    /// the free tier. Nothing ran out, so no expiry prompt or expiry copy.
+    case free
     case pro(plan: KikiAccessPlan, entitlement: CommerceEntitlement)
 
     public var isActive: Bool {
         switch self {
         case .trial, .pro:
             return true
-        case .notStarted, .expired:
+        case .notStarted, .expired, .free:
             return false
         }
     }
