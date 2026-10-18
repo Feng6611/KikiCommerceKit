@@ -84,6 +84,9 @@ public final class RevenueCatCommerceClient: NSObject, CommerceClient {
 
         sdkClient.configure(with: revenueCatConfiguration)
         isConfigured = true
+        if let postHogUserID = revenueCatConfiguration.postHogUserID {
+            sdkClient.setPostHogUserID(postHogUserID)
+        }
 
         logger.notice("RevenueCat configured.")
     }
@@ -319,6 +322,7 @@ protocol RevenueCatSDKClient: AnyObject {
     var customerInfoDidChange: ((CustomerInfo) -> Void)? { get set }
 
     func configure(with configuration: RevenueCatConfiguration)
+    func setPostHogUserID(_ postHogUserID: String)
     func offerings() async throws -> RevenueCatSDKOfferings
     func customerInfo(fetchPolicy: CacheFetchPolicy) async throws -> CustomerInfo
     func purchase(package: Package) async throws -> PurchaseResultData
@@ -353,6 +357,10 @@ final class RevenueCatPurchasesSDKClient: NSObject, RevenueCatSDKClient {
 
         Purchases.configure(with: revenueCatConfiguration)
         Purchases.shared.delegate = self
+    }
+
+    func setPostHogUserID(_ postHogUserID: String) {
+        Purchases.shared.attribution.setPostHogUserID(postHogUserID)
     }
 
     func offerings() async throws -> RevenueCatSDKOfferings {

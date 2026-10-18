@@ -95,7 +95,8 @@ let accessConfiguration = KikiAccessConfiguration(
 )
 let revenueCatConfiguration = RevenueCatConfiguration(
     apiKey: "appl_xxx",
-    offeringIdentifier: "default"
+    offeringIdentifier: "default",
+    postHogUserID: analytics.installationID.uuidString // optional; RevenueCat → PostHog integration
 )
 let manager = KikiAccessManager(
     configuration: accessConfiguration,

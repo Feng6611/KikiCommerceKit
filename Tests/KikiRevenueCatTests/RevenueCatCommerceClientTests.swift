@@ -45,6 +45,52 @@ final class RevenueCatCommerceClientTests: XCTestCase {
         XCTAssertEqual(offering?.products.map(\.plan), [.lifetime])
     }
 
+    func testConfigureSetsPostHogUserIDOnceAfterConfiguring() {
+        let sdkClient = MockRevenueCatSDKClient()
+        let client = RevenueCatCommerceClient(
+            configuration: configuration,
+            revenueCatConfiguration: RevenueCatConfiguration(
+                apiKey: "test_key",
+                postHogUserID: " 6F1C2B1E-0000-4000-8000-000000000001 "
+            ),
+            sdkClient: sdkClient
+        )
+
+        client.configureIfNeeded()
+        client.configureIfNeeded()
+
+        XCTAssertEqual(sdkClient.postHogUserIDs, ["6F1C2B1E-0000-4000-8000-000000000001"])
+    }
+
+    func testConfigureWithoutPostHogUserIDSetsNoAttribute() {
+        for postHogUserID in [nil, "", "  "] as [String?] {
+            let sdkClient = MockRevenueCatSDKClient()
+            let client = RevenueCatCommerceClient(
+                configuration: configuration,
+                revenueCatConfiguration: RevenueCatConfiguration(apiKey: "test_key", postHogUserID: postHogUserID),
+                sdkClient: sdkClient
+            )
+
+            client.configureIfNeeded()
+
+            XCTAssertTrue(sdkClient.didConfigure)
+            XCTAssertTrue(sdkClient.postHogUserIDs.isEmpty)
+        }
+    }
+
+    func testMissingAPIKeySetsNoPostHogUserID() {
+        let sdkClient = MockRevenueCatSDKClient()
+        let client = RevenueCatCommerceClient(
+            configuration: configuration,
+            revenueCatConfiguration: RevenueCatConfiguration(apiKey: "", postHogUserID: "id"),
+            sdkClient: sdkClient
+        )
+
+        client.configureIfNeeded()
+
+        XCTAssertTrue(sdkClient.postHogUserIDs.isEmpty)
+    }
+
     func testLoadOfferingKeepsCurrentOfferingWhenItHasConfiguredProducts() async throws {
         let sdkClient = MockRevenueCatSDKClient()
         sdkClient.loadedOfferings = .init(
@@ -270,9 +316,15 @@ private final class MockRevenueCatSDKClient: RevenueCatSDKClient {
     var loadedOfferings = RevenueCatSDKOfferings(current: nil, all: [:])
     var loadedCustomerInfo: CustomerInfo?
     var didConfigure = false
+    var postHogUserIDs: [String] = []
 
     func configure(with configuration: RevenueCatConfiguration) {
         didConfigure = true
+    }
+
+    func setPostHogUserID(_ postHogUserID: String) {
+        XCTAssertTrue(didConfigure, "The attribute is set only after Purchases is configured.")
+        postHogUserIDs.append(postHogUserID)
     }
 
     func offerings() async throws -> RevenueCatSDKOfferings {

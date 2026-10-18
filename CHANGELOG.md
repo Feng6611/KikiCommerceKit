@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `RevenueCatConfiguration(postHogUserID:)` (also on `standardPro` and
+  `standardProFromInfoDictionary`). After configuring Purchases, the RevenueCat
+  client sets it as the `$posthogUserId` attribute, so RevenueCat's PostHog
+  integration sends purchase, renewal and expiration events under the host's
+  analytics identity (for example `KikiAnalytics.installationID`). The
+  RevenueCat app user ID and existing customers are unchanged. Commerce does not
+  depend on any analytics package; nil or blank sets nothing.
+
 ## 0.5.0 - 2026-10-13
 
 ### Added
