@@ -2,7 +2,47 @@
 
 ## Unreleased
 
+Requires the unreleased Kiki_mackit `KikiPaywallLayout` (`layout:`) and
+`KikiPaywallPlanLayout`; pin the next Kiki_mackit release when it ships. The
+`Package.swift` pin is unchanged here.
+
 ### Added
+
+Source compatibility: `KikiAccessPaywallSheet.init` and `KikiAccessPaywallCopy.init`
+keep their released signatures as overloads, so initializer references and
+existing calls (including a trailing closure, which binds to `onFinish`) compile
+unchanged. The expanded overloads add the new arguments.
+
+- `KikiAccessPaywallSheet(hero:)`: a host view that replaces the icon header,
+  drawn full-bleed and flush with the sheet's top and side edges. Its height is
+  the view's own; the close button stays on top, and features, plans, actions
+  and links keep their padding.
+- `KikiAccessPaywallSheet(planLayout:)`: `.cards` (default) or `.rows`. Rows
+  stack the plans full-width with title, detail line, price and badge, a 2-point
+  tint ring on the selection and no radio circle; each row is one button with
+  the selected trait.
+- `KikiAccessPaywallSheet(width:)`: the sheet width; `nil` keeps
+  `KikiPaywallDefaults.sheetWidth`.
+- `KikiAccessPaywallOutcome` and `KikiAccessPaywallSheet(onPurchaseCompleted:)`:
+  called on the main actor, at most once per presentation of the sheet, when a
+  purchase (`.purchased(planID:)`) or restore (`.restored`) is verified. It runs
+  before the sheet shows the success view or finishes. Until then the sheet keeps
+  its purchase presentation even if the manager already reports Pro, so the host
+  can run the action the user clicked first. Not called for a trial start, a
+  cancel, a failure or an empty restore.
+- `KikiAccessPaywallSheet(successContent:)`: with a host success view the sheet
+  no longer finishes at once after a verified purchase or restore; it swaps its
+  content for that view and one Done button and stays there until Done, even if
+  the entitlement changes meanwhile. Done finishes as before. Without it,
+  behavior is unchanged. A trial start still finishes immediately.
+- One transaction per presentation: the sheet accepts a purchase, restore or
+  trial only while idle, so a second action queued behind a successful one, or
+  started while the success view is held, is ignored.
+- `KikiAccessPaywallCopy(featuresHeading:)`: an optional small headline above
+  the features list (for example "Included with Pro"). `nil`, the default,
+  shows none.
+- `KikiAccessPaywallSheet(ownerContent:)`: a host view shown instead of the
+  default access summary when the user is Pro, above the usual Done button.
 
 - `RevenueCatConfiguration(postHogUserID:)` (also on `standardPro` and
   `standardProFromInfoDictionary`). After configuring Purchases, the RevenueCat

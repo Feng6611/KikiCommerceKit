@@ -14,11 +14,14 @@ struct KikiAccessPaywallActionPolicy: Equatable {
     let primary: KikiAccessPaywallActionKind
     let secondary: [KikiAccessPaywallActionKind]
 
+    /// - Parameter holdingSuccess: the sheet is held on the host's success view.
+    ///   It offers Done alone, whatever the live entitlement does meanwhile.
     static func resolve(
         status: KikiAccessState,
-        context: KikiAccessPaywallContext
+        context: KikiAccessPaywallContext,
+        holdingSuccess: Bool = false
     ) -> Self {
-        if status.isPro {
+        if holdingSuccess || status.isPro {
             return Self(primary: .dismiss, secondary: [])
         }
 
@@ -30,11 +33,60 @@ struct KikiAccessPaywallActionPolicy: Equatable {
     }
 }
 
+/// How a verified transaction ended, reported to `onPurchaseCompleted`.
+public enum KikiAccessPaywallOutcome: Equatable, Sendable {
+    /// The user bought `planID` and access is verified.
+    case purchased(planID: String)
+    /// A restore found an active purchase and access is verified.
+    case restored
+}
+
+/// What the sheet does once a purchase or restore is verified.
+struct KikiAccessPaywallCompletion {
+    var onPurchaseCompleted: (@MainActor (KikiAccessPaywallOutcome) -> Void)?
+    /// Hold the sheet open on the host's success view instead of finishing.
+    var showsSuccessContent: Bool
+    var finish: @MainActor () -> Void
+}
+
+/// Where one presentation of the sheet is in its single transaction.
+///
+/// `idle -> executing -> holding -> finished` (success view), or
+/// `idle -> executing -> finished` (finish at once). A failure or cancel returns
+/// `executing` to `idle`. Only `idle` accepts a purchase, restore or trial, so a
+/// second action queued behind a successful one is rejected, and nothing starts
+/// again after success.
+enum KikiAccessPaywallPhase: Equatable {
+    case idle
+    /// A purchase, restore or trial start was accepted and has not finished. The
+    /// sheet keeps its pre-transaction presentation until the host has been told.
+    case executing
+    /// A verified transaction is held on the host's success view; Done finishes.
+    case holding(KikiAccessPaywallOutcome)
+    /// The sheet's finish path ran. `held` is the outcome shown on the success
+    /// view, if any, so the view does not flip to the owner summary afterwards.
+    case finished(held: KikiAccessPaywallOutcome?)
+}
+
+/// What the sheet shows, independent of the entitlement racing underneath it.
+enum KikiAccessPaywallMode: Equatable {
+    case purchase
+    case owner
+    case success
+}
+
 @MainActor
 final class KikiAccessPaywallWorkflow: ObservableObject {
     @Published private(set) var isLoadingOfferings = false
     @Published private(set) var isStartingTrial = false
     @Published private(set) var lastAction: KikiAccessPaywallActionKind?
+    @Published private(set) var phase: KikiAccessPaywallPhase = .idle
+
+    /// The status when the transaction was accepted. The manager can publish Pro
+    /// while the store call is still suspended; the sheet keeps showing this
+    /// until the host has been told.
+    private var frozenStatus: KikiAccessState?
+    private var completionDelivered = false
 
     private let manager: KikiAccessManager
 
@@ -43,14 +95,39 @@ final class KikiAccessPaywallWorkflow: ObservableObject {
     }
 
     var isBusy: Bool {
+        isTransactionBusy || phase == .executing
+    }
+
+    private var isTransactionBusy: Bool {
         isLoadingOfferings
             || isStartingTrial
             || manager.purchaseInProgressPlanID != nil
             || manager.isRestoringPurchases
     }
 
+    /// The status the sheet should present: frozen while a transaction is
+    /// executing, live otherwise.
+    var presentedStatus: KikiAccessState {
+        phase == .executing ? (frozenStatus ?? manager.status) : manager.status
+    }
+
+    /// The outcome the success view stands for, while held or after its Done.
+    var successOutcome: KikiAccessPaywallOutcome? {
+        switch phase {
+        case .holding(let outcome), .finished(held: .some(let outcome)):
+            return outcome
+        case .idle, .executing, .finished(held: .none):
+            return nil
+        }
+    }
+
+    var mode: KikiAccessPaywallMode {
+        if successOutcome != nil { return .success }
+        return presentedStatus.isPro ? .owner : .purchase
+    }
+
     func loadOfferings() async {
-        guard !isBusy else {
+        guard !isTransactionBusy else {
             return
         }
 
@@ -60,7 +137,7 @@ final class KikiAccessPaywallWorkflow: ObservableObject {
     }
 
     func purchase(planID: String, placement: String? = nil) async -> Bool {
-        guard !isBusy else {
+        guard !isTransactionBusy else {
             return false
         }
         lastAction = .purchase
@@ -74,7 +151,7 @@ final class KikiAccessPaywallWorkflow: ObservableObject {
     }
 
     func restorePurchases() async -> Bool {
-        guard !isBusy else {
+        guard !isTransactionBusy else {
             return false
         }
         lastAction = .restore
@@ -87,8 +164,86 @@ final class KikiAccessPaywallWorkflow: ObservableObject {
         }
     }
 
+    /// Accepts the action only while idle, before any await, so a second
+    /// action queued behind it is turned away rather than racing it.
+    private func reserve() -> Bool {
+        guard phase == .idle, !isTransactionBusy else {
+            return false
+        }
+        frozenStatus = manager.status
+        phase = .executing
+        return true
+    }
+
+    private func release() {
+        frozenStatus = nil
+        phase = .idle
+    }
+
+    /// Purchases, and on success reports the outcome once and then either
+    /// shows the success view or finishes. Ignored unless the sheet is idle.
+    func purchaseAndComplete(
+        planID: String,
+        placement: String? = nil,
+        completion: KikiAccessPaywallCompletion
+    ) async {
+        guard reserve() else { return }
+        guard await purchase(planID: planID, placement: placement) else {
+            release()
+            return
+        }
+        complete(.purchased(planID: planID), completion)
+    }
+
+    /// Restores, and on success reports the outcome once and then either
+    /// shows the success view or finishes. Ignored unless the sheet is idle.
+    func restoreAndComplete(completion: KikiAccessPaywallCompletion) async {
+        guard reserve() else { return }
+        guard await restorePurchases() else {
+            release()
+            return
+        }
+        complete(.restored, completion)
+    }
+
+    /// Starts the trial and finishes at once. Ignored unless the sheet is idle.
+    func startTrialAndFinish(finish: @MainActor () -> Void) async {
+        guard reserve() else { return }
+        guard await startTrial() else {
+            release()
+            return
+        }
+        frozenStatus = nil
+        phase = .finished(held: nil)
+        finish()
+    }
+
+    /// Done on the success view. The first call finishes; later ones do nothing.
+    func finishHeld(finish: @MainActor () -> Void) {
+        guard case .holding(let outcome) = phase else { return }
+        phase = .finished(held: outcome)
+        finish()
+    }
+
+    /// The host acts first, while the sheet still shows the purchase UI and
+    /// refuses new actions, so the action the user originally clicked runs
+    /// before anything changes on screen. Delivery is marked before host code
+    /// runs, so a callback that re-enters cannot deliver twice.
+    private func complete(_ outcome: KikiAccessPaywallOutcome, _ completion: KikiAccessPaywallCompletion) {
+        guard !completionDelivered else { return }
+        completionDelivered = true
+        completion.onPurchaseCompleted?(outcome)
+        frozenStatus = nil
+        if completion.showsSuccessContent {
+            phase = .holding(outcome)
+        } else {
+            phase = .finished(held: nil)
+            completion.finish()
+        }
+    }
+
     func startTrial() async -> Bool {
-        guard !isBusy else {
+        guard !isTransactionBusy else {
             return false
         }
         lastAction = .startTrial
@@ -113,8 +268,14 @@ public struct KikiAccessPaywallSheet: View {
     private let planPresentation: (@MainActor (KikiAccessPlanProduct) -> KikiPaywallPlanPresentation)?
     private let placement: String?
     private let note: String?
+    private let hero: AnyView?
+    private let planLayout: KikiPaywallPlanLayout
+    private let width: CGFloat?
+    private let ownerContent: AnyView?
+    private let successContent: AnyView?
     private let tint: Color
     private let onFinish: () -> Void
+    private let onPurchaseCompleted: (@MainActor (KikiAccessPaywallOutcome) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPlanID: String
@@ -131,6 +292,75 @@ public struct KikiAccessPaywallSheet: View {
     ///   from it is attributed to that placement in the store's analytics.
     /// - Parameter note: one host line under the purchase terms, inside the
     ///   sheet (for example what stays free). Not shown to an owner.
+    /// - Parameter hero: a host view that replaces the icon, title and subtitle
+    ///   header. It is drawn full-bleed, flush with the sheet's top and side
+    ///   edges, and decides its own height; the close button stays on top of it.
+    ///   Features, plans, actions and links keep their padding. It also replaces
+    ///   the default owner header, so pass `ownerContent` too if owners need words.
+    /// - Parameter planLayout: `.cards` (default) lays the plans side by side;
+    ///   `.rows` stacks them as full-width rows with a tint ring on the
+    ///   selection.
+    /// - Parameter width: the sheet width. `nil` keeps `KikiPaywallDefaults.sheetWidth`
+    ///   (the onboarding size in an onboarding context).
+    /// - Parameter ownerContent: a host view shown instead of the default access
+    ///   summary when the user is Pro. It is drawn full-bleed above the Done
+    ///   button, so the host owns its padding. `nil` keeps the default summary.
+    /// - Parameter successContent: a host view for a verified purchase or
+    ///   restore. When set, the sheet does not finish at once; it swaps its
+    ///   content for this view and a single Done button, and stays on it until
+    ///   Done (or close), whatever the entitlement does meanwhile. `nil` keeps
+    ///   today's behavior: finish immediately. Starting a trial always finishes
+    ///   immediately.
+    /// - Parameter onPurchaseCompleted: called on the main actor, at most once
+    ///   per presentation of the sheet, when a purchase or restore is verified.
+    ///   It runs before the sheet shows the success view or finishes, and the
+    ///   sheet keeps its purchase presentation until then (the manager may
+    ///   already report Pro), so the host can run the action the user asked for
+    ///   first. After a success the sheet accepts no further purchase, restore
+    ///   or trial. It is not called for a trial start, a cancelled purchase or a
+    ///   failure. A restore that finds nothing is not a success.
+    public init(
+        manager: KikiAccessManager,
+        context: KikiAccessPaywallContext,
+        copy: KikiAccessPaywallCopy = KikiAccessPaywallCopy(),
+        stats: [KikiAccessPaywallStat] = [],
+        footerLinks: [KikiAccessPaywallLink] = [],
+        displayPlanIDs: [String]?,
+        planPresentation: (@MainActor (KikiAccessPlanProduct) -> KikiPaywallPlanPresentation)? = nil,
+        placement: String? = nil,
+        note: String? = nil,
+        hero: AnyView? = nil,
+        planLayout: KikiPaywallPlanLayout = .cards,
+        width: CGFloat? = nil,
+        ownerContent: AnyView? = nil,
+        successContent: AnyView? = nil,
+        tint: Color = .accentColor,
+        onFinish: @escaping () -> Void = {},
+        onPurchaseCompleted: (@MainActor (KikiAccessPaywallOutcome) -> Void)? = nil
+    ) {
+        self.manager = manager
+        self.context = context
+        self.copy = copy
+        self.stats = stats
+        self.footerLinks = footerLinks
+        self.displayPlanIDs = displayPlanIDs
+        self.planPresentation = planPresentation
+        self.placement = placement
+        self.note = note
+        self.hero = hero
+        self.planLayout = planLayout
+        self.width = width
+        self.ownerContent = ownerContent
+        self.successContent = successContent
+        self.tint = tint
+        self.onFinish = onFinish
+        self.onPurchaseCompleted = onPurchaseCompleted
+        _workflow = StateObject(wrappedValue: KikiAccessPaywallWorkflow(manager: manager))
+        _selectedPlanID = State(initialValue: manager.configuration.defaultPlanID)
+    }
+
+    /// The 0.5.0 entry, kept with its exact signature so initializer references
+    /// and existing call sites keep compiling. It shows the standard paywall.
     public init(
         manager: KikiAccessManager,
         context: KikiAccessPaywallContext,
@@ -144,19 +374,25 @@ public struct KikiAccessPaywallSheet: View {
         tint: Color = .accentColor,
         onFinish: @escaping () -> Void = {}
     ) {
-        self.manager = manager
-        self.context = context
-        self.copy = copy
-        self.stats = stats
-        self.footerLinks = footerLinks
-        self.displayPlanIDs = displayPlanIDs
-        self.planPresentation = planPresentation
-        self.placement = placement
-        self.note = note
-        self.tint = tint
-        self.onFinish = onFinish
-        _workflow = StateObject(wrappedValue: KikiAccessPaywallWorkflow(manager: manager))
-        _selectedPlanID = State(initialValue: manager.configuration.defaultPlanID)
+        self.init(
+            manager: manager,
+            context: context,
+            copy: copy,
+            stats: stats,
+            footerLinks: footerLinks,
+            displayPlanIDs: displayPlanIDs,
+            planPresentation: planPresentation,
+            placement: placement,
+            note: note,
+            hero: nil,
+            planLayout: .cards,
+            width: nil,
+            ownerContent: nil,
+            successContent: nil,
+            tint: tint,
+            onFinish: onFinish,
+            onPurchaseCompleted: nil
+        )
     }
 
     /// Compatibility entry for 0.2.1 callers, including initializer references.
@@ -181,16 +417,23 @@ public struct KikiAccessPaywallSheet: View {
 
     public var body: some View {
         let presentation = makePresentation()
+        let layout = makeLayout()
         return Group {
             switch context {
             case .onboarding:
-                KikiOnboardingPaywall(presentation: presentation, selectedPlanID: $selectedPlanID, tint: tint)
+                KikiOnboardingPaywall(
+                    presentation: presentation,
+                    selectedPlanID: $selectedPlanID,
+                    tint: tint,
+                    layout: layout
+                )
             case .settings:
                 KikiCompactPaywall(
                     presentation: presentation,
                     selectedPlanID: $selectedPlanID,
                     tint: tint,
-                    showsCloseButton: true
+                    showsCloseButton: true,
+                    layout: layout
                 )
             }
         }
@@ -204,31 +447,72 @@ public struct KikiAccessPaywallSheet: View {
         .interactiveDismissDisabled(context == .onboarding)
     }
 
+    /// The entitlement the sheet presents. It stays at the pre-transaction value
+    /// while a purchase or restore is executing, because the manager may publish
+    /// Pro before the store call returns and before the host has been told.
+    private var status: KikiAccessState {
+        workflow.presentedStatus
+    }
+
+    private var showsCatalog: Bool {
+        workflow.mode == .purchase && Self.showsCatalog(for: status)
+    }
+
+    /// Which host view, if any, stands in for the sheet's content. The mode
+    /// comes from the workflow, not from the live entitlement: a held success
+    /// view stays until Done, and the owner view waits for the host callback.
+    private func makeLayout() -> KikiPaywallLayout {
+        switch workflow.mode {
+        case .success:
+            if let successContent {
+                return KikiPaywallLayout(width: width, replacementContent: successContent)
+            }
+        case .owner:
+            if let ownerContent {
+                return KikiPaywallLayout(width: width, replacementContent: ownerContent)
+            }
+        case .purchase:
+            break
+        }
+        return KikiPaywallLayout(
+            hero: hero,
+            planLayout: planLayout,
+            width: width,
+            featuresHeading: copy.featuresHeading
+        )
+    }
+
     private func makePresentation() -> KikiPaywallPresentation {
-        KikiPaywallPresentation(
+        // The success view stands alone: the feedback banner and store links
+        // belong to the purchase surface it replaced.
+        let isShowingSuccess = workflow.mode == .success
+        return KikiPaywallPresentation(
             accessState: accessState,
             headerTitle: copy.title,
             headerSubtitle: subtitle,
             plans: plans,
             // An owner is not being sold to. Listing features and prices to
             // someone who already paid reads as "did my purchase go through?".
-            features: Self.showsCatalog(for: manager.status) ? copy.features : [],
+            features: showsCatalog ? copy.features : [],
             stats: stats.map { KikiPaywallStatConfig(id: $0.id, value: $0.value, label: $0.label) },
             footnote: Self.footnote(plans: displayedPlans, selectedPlanID: selectedPlanID,
-                                    note: Self.showsCatalog(for: manager.status) ? note : nil),
-            footerLinks: footerLinks.map {
+                                    note: showsCatalog ? note : nil),
+            footerLinks: isShowingSuccess ? [] : footerLinks.map {
                 KikiPaywallLinkPresentation(id: $0.id, title: $0.title, url: $0.url)
             },
-            message: message,
+            message: isShowingSuccess ? nil : message,
             isInteractionDisabled: workflow.isBusy,
             primaryAction: primaryAction,
             secondaryActions: secondaryActions,
-            dismiss: finish
+            dismiss: finishFromDone
         )
     }
 
     private var accessState: KikiPaywallAccessState {
-        switch manager.status {
+        if let outcome = workflow.successOutcome {
+            return .entitled(planTitle: heldPlanTitle(for: outcome))
+        }
+        switch status {
         case .notStarted:
             return .notStarted
         case .trial:
@@ -242,8 +526,24 @@ public struct KikiAccessPaywallSheet: View {
         }
     }
 
+    /// The plan the success view stands for, whatever the live entitlement says now.
+    private func heldPlanTitle(for outcome: KikiAccessPaywallOutcome) -> String {
+        switch outcome {
+        case .purchased(let planID):
+            return presentation(for: manager.planProduct(for: planID)).title
+        case .restored:
+            if case .pro(let plan, _) = manager.status {
+                return presentation(for: manager.planProduct(for: plan.id)).title
+            }
+            return presentation(for: manager.planProduct(for: manager.configuration.defaultPlanID)).title
+        }
+    }
+
     private var subtitle: String {
-        switch manager.status {
+        if workflow.successOutcome != nil {
+            return copy.proSubtitle
+        }
+        switch status {
         case .notStarted:
             return copy.notStartedSubtitle
         case .trial:
@@ -258,7 +558,7 @@ public struct KikiAccessPaywallSheet: View {
     }
 
     private var displayedPlans: [KikiAccessPlanProduct] {
-        guard Self.showsCatalog(for: manager.status) else { return [] }
+        guard showsCatalog else { return [] }
         return Self.displayedPlans(from: manager.availablePlans, displayPlanIDs: displayPlanIDs)
     }
 
@@ -311,7 +611,7 @@ public struct KikiAccessPaywallSheet: View {
     }
 
     private var actionPolicy: KikiAccessPaywallActionPolicy {
-        .resolve(status: manager.status, context: context)
+        .resolve(status: status, context: context, holdingSuccess: workflow.successOutcome != nil)
     }
 
     private func actionPresentation(
@@ -327,7 +627,7 @@ public struct KikiAccessPaywallSheet: View {
         case .dismiss:
             return KikiPaywallActionPresentation(
                 title: copy.doneActionTitle,
-                action: finish
+                action: finishFromDone
             )
         }
     }
@@ -340,8 +640,9 @@ public struct KikiAccessPaywallSheet: View {
                 manager.planProduct(for: planID).isAvailable
             },
             action: { planID in
-                run {
-                    await workflow.purchase(planID: planID, placement: placement)
+                let completion = completion
+                Task { @MainActor in
+                    await workflow.purchaseAndComplete(planID: planID, placement: placement, completion: completion)
                 }
             }
         )
@@ -352,8 +653,9 @@ public struct KikiAccessPaywallSheet: View {
             title: copy.trialActionTitle,
             isLoading: workflow.isStartingTrial,
             action: {
-                run {
-                    await workflow.startTrial()
+                let finish = finish
+                Task { @MainActor in
+                    await workflow.startTrialAndFinish(finish: finish)
                 }
             }
         )
@@ -367,18 +669,29 @@ public struct KikiAccessPaywallSheet: View {
             isLoading: manager.isRestoringPurchases,
             style: .footerLink,
             action: {
-                run {
-                    await workflow.restorePurchases()
+                let completion = completion
+                Task { @MainActor in
+                    await workflow.restoreAndComplete(completion: completion)
                 }
             }
         )
     }
 
-    private func run(_ operation: @escaping @MainActor () async -> Bool) {
-        Task<Void, Never> {
-            if await operation() {
-                finish()
-            }
+    private var completion: KikiAccessPaywallCompletion {
+        KikiAccessPaywallCompletion(
+            onPurchaseCompleted: onPurchaseCompleted,
+            showsSuccessContent: successContent != nil,
+            finish: finish
+        )
+    }
+
+    /// Done and the close button. On a held success view the first press
+    /// finishes through the workflow; otherwise it is the plain finish path.
+    private func finishFromDone() {
+        if workflow.successOutcome != nil {
+            workflow.finishHeld(finish: finish)
+        } else {
+            finish()
         }
     }
 
@@ -411,9 +724,9 @@ public struct KikiAccessPaywallSheet: View {
         if workflow.isLoadingOfferings {
             return KikiPaywallMessagePresentation(text: copy.loadingOptionsMessage)
         }
-        if Self.showsCatalog(for: manager.status),
+        if showsCatalog,
            displayedPlans.allSatisfy({ !$0.isAvailable }),
-           manager.status.canStartTrial == false {
+           status.canStartTrial == false {
             return KikiPaywallMessagePresentation(
                 text: copy.unavailableOptionsMessage
             )

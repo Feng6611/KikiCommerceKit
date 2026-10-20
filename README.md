@@ -73,6 +73,23 @@ Apps depending only on `KikiCommerceCore` can pass an in-process `CommerceClient
   The app owns copy, footer links, product configuration, feature gates, and
   post-finish routing.
 
+## Host layout
+
+`KikiAccessPaywallSheet` takes optional host views; with none of them it renders
+the standard paywall:
+
+- `hero`: replaces the icon header, drawn full-bleed at the top.
+- `planLayout: .rows`: stacked full-width plan rows with a tint ring.
+- `successContent`: shown with one Done button after a verified purchase or
+  restore, instead of closing at once.
+- `ownerContent`: shown instead of the default summary when the user is Pro.
+- `onPurchaseCompleted`: called at most once per presentation, before the sheet
+  shows the success view or finishes, with `.purchased(planID:)` or `.restored`,
+  so the app can run the action the user clicked. The sheet accepts one
+  transaction; later purchase or restore taps are ignored after a success.
+- `KikiAccessPaywallCopy(featuresHeading:)`: an optional headline above the
+  features.
+
 ## Quick start
 
 ```swift
