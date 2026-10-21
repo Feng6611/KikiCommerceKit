@@ -44,6 +44,10 @@ unchanged. The expanded overloads add the new arguments.
 - `KikiAccessPaywallSheet(ownerContent:)`: a host view shown instead of the
   default access summary when the user is Pro, above the usual Done button.
 
+## 0.5.1 - 2026-10-21
+
+### Added
+
 - `RevenueCatConfiguration(postHogUserID:)` (also on `standardPro` and
   `standardProFromInfoDictionary`). After configuring Purchases, the RevenueCat
   client sets it as the `$posthogUserId` attribute, so RevenueCat's PostHog
