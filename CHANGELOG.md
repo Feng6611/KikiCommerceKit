@@ -1,10 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 - 2026-10-24
 
-Requires the unreleased Kiki_mackit `KikiPaywallLayout` (`layout:`) and
-`KikiPaywallPlanLayout`; pin the next Kiki_mackit release when it ships. The
-`Package.swift` pin is unchanged here.
+Requires `Kiki_mackit` 0.12.0 (exact), which ships `KikiPaywallLayout`
+(`layout:`) and `KikiPaywallPlanLayout`.
 
 ### Added
 
