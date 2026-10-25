@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Carries forward 0.5.2, which was cut from 0.5.1 and is not in 0.6.0: the
+  onboarding paywall makes "Start free trial" the primary action while a trial
+  can still be started; Settings keeps purchase primary.
+
 ## 0.6.0 - 2026-10-24
 
 Requires `Kiki_mackit` 0.12.0 (exact), which ships `KikiPaywallLayout`
