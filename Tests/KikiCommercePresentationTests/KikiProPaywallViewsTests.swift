@@ -91,15 +91,26 @@ struct KikiProPaywallViewsTests {
         #expect(policy.secondary == [.restore])
     }
 
-    @Test("Onboarding offers purchase primary with trial and restore secondary")
+    @Test("Onboarding offers the trial primary with purchase and restore secondary")
     func onboardingActionPolicy() {
         let policy = KikiAccessPaywallActionPolicy.resolve(
             status: .notStarted,
             context: .onboarding
         )
 
+        #expect(policy.primary == .startTrial)
+        #expect(policy.secondary == [.purchase, .restore])
+    }
+
+    @Test("Onboarding without a trial to start keeps purchase primary")
+    func onboardingWithoutTrialKeepsPurchasePrimary() {
+        let policy = KikiAccessPaywallActionPolicy.resolve(
+            status: .expired,
+            context: .onboarding
+        )
+
         #expect(policy.primary == .purchase)
-        #expect(policy.secondary == [.startTrial, .restore])
+        #expect(policy.secondary == [.restore])
     }
 
     @Test("Entitled state dismisses without transaction actions")
