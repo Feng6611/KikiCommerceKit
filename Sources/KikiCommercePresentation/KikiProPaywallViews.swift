@@ -23,6 +23,12 @@ struct KikiAccessPaywallActionPolicy: Equatable {
         }
 
         if status.canStartTrial {
+            // Onboarding is the first look at the price, before the app has
+            // been used: starting the trial is the way forward, and buying
+            // stays one tap away. Settings is a deliberate visit to buy.
+            if context == .onboarding {
+                return Self(primary: .startTrial, secondary: [.purchase, .restore])
+            }
             return Self(primary: .purchase, secondary: [.startTrial, .restore])
         }
 

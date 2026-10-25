@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.2 - 2026-10-26
+
+### Changed
+
+- The onboarding paywall makes "Start free trial" the primary action while a
+  trial can still be started, with purchase and restore as secondary actions.
+  Onboarding is the first look at the price, before the app has been used.
+  The Settings paywall is unchanged: purchase stays primary.
+
 ## 0.5.1 - 2026-10-21
 
 ### Added
