@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.6.1 - 2026-10-26
+
+Requires `Kiki_mackit` 0.12.0 (exact), unchanged from 0.6.0.
 
 ### Changed
 
